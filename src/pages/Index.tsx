@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
-
+import { supabase } from "@/integrations/supabase/client";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -125,6 +125,15 @@ const Index = () => {
     document.title = "Velocity Mail — Superhuman-style Gmail";
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute("content", "A Superhuman-style Gmail client: keyboard-first, fast triage, elegant UI.");
+
+    // Connection feedback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gmail") === "connected") {
+      toast({ title: "Gmail connected", description: "Your Google account is linked." });
+      params.delete("gmail");
+      const url = `${window.location.pathname}?${params.toString()}`.replace(/\?$/, "");
+      window.history.replaceState({}, "", url);
+    }
   }, []);
 
   const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred">("inbox");
@@ -251,6 +260,21 @@ const Index = () => {
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </div>
+              <Button variant="secondary" onClick={async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                  toast({ title: "Login required", description: "Please log in to connect Gmail." });
+                  return;
+                }
+                const { data, error } = await supabase.functions.invoke("gmail-oauth", {
+                  body: { redirect_url: window.location.origin },
+                });
+                if (error || !data?.authUrl) {
+                  toast({ title: "Error", description: error?.message || "Could not start Google OAuth." });
+                  return;
+                }
+                window.location.href = data.authUrl;
+              }}>Connect Gmail</Button>
               <Button onClick={() => setComposeOpen(true)}>Compose</Button>
             </div>
           </div>
