@@ -14,7 +14,181 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      email_accounts: {
+        Row: {
+          access_token: string | null
+          access_token_expires_at: string | null
+          created_at: string
+          email_address: string
+          history_id: number | null
+          id: string
+          provider: string
+          refresh_token: string
+          scope: string | null
+          token_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          created_at?: string
+          email_address: string
+          history_id?: number | null
+          id?: string
+          provider?: string
+          refresh_token: string
+          scope?: string | null
+          token_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          created_at?: string
+          email_address?: string
+          history_id?: number | null
+          id?: string
+          provider?: string
+          refresh_token?: string
+          scope?: string | null
+          token_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_messages: {
+        Row: {
+          account_id: string
+          bcc_addresses: string[] | null
+          body_html: string | null
+          body_text: string | null
+          cc_addresses: string[] | null
+          created_at: string
+          from_address: string | null
+          gmail_message_id: string
+          id: string
+          internal_date: string | null
+          is_read: boolean
+          label_ids: string[] | null
+          size_estimate: number | null
+          snippet: string | null
+          subject: string | null
+          thread_id: string | null
+          to_addresses: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          from_address?: string | null
+          gmail_message_id: string
+          id?: string
+          internal_date?: string | null
+          is_read?: boolean
+          label_ids?: string[] | null
+          size_estimate?: number | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_addresses?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          from_address?: string | null
+          gmail_message_id?: string
+          id?: string
+          internal_date?: string | null
+          is_read?: boolean
+          label_ids?: string[] | null
+          size_estimate?: number | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_addresses?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outgoing_mail_logs: {
+        Row: {
+          account_id: string
+          bcc_addresses: string[] | null
+          body_html: string | null
+          body_text: string | null
+          cc_addresses: string[] | null
+          created_at: string
+          error_message: string | null
+          gmail_message_id: string | null
+          id: string
+          status: string
+          subject: string | null
+          to_addresses: string[]
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          status?: string
+          subject?: string | null
+          to_addresses: string[]
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          bcc_addresses?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          status?: string
+          subject?: string | null
+          to_addresses?: string[]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outgoing_mail_logs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
