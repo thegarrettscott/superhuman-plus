@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -508,62 +508,129 @@ const Index = () => {
       setCurrentPage(newPage);
     }
   };
-  const archiveSelected = async () => {
-    if (!selected) return;
-    const removingId = selected.id;
-    // Optimistic remove from current page
-    setEmails(prev => prev.filter(e => e.id !== removingId));
-    setSelectedId(prev => prev === removingId ? undefined : prev);
-    const {
-      error
-    } = await supabase.functions.invoke('gmail-actions', {
-      body: {
-        action: 'modify',
-        id: selected.gmailId,
-        add: [],
-        remove: ['INBOX']
+  // Optimistic archive mutation
+  const archiveMutation = useMutation({
+    mutationFn: async (email: Email) => {
+      const { error } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'modify',
+          id: email.gmailId,
+          add: [],
+          remove: ['INBOX']
+        }
+      });
+      if (error) throw error;
+      return email;
+    },
+    onMutate: async (email) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['emails'] });
+      
+      // Snapshot previous value
+      const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
+      
+      // Optimistically update to remove email
+      queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          emails: old.emails.filter((e: Email) => e.id !== email.id),
+          total: old.total - 1
+        };
+      });
+      
+      // Update local state immediately
+      setEmails(prev => prev.filter(e => e.id !== email.id));
+      setSelectedId(prev => prev === email.id ? undefined : prev);
+      
+      return { previousEmails };
+    },
+    onError: (err, email, context) => {
+      // Rollback on error
+      if (context?.previousEmails) {
+        queryClient.setQueryData(['emails', mailbox, query, currentPage], context.previousEmails);
       }
-    });
-    if (error) {
+      // Restore local state
+      refetchEmails();
       toast({
         title: 'Failed to archive',
-        description: error.message
+        description: 'Could not archive email. Please try again.'
       });
-    } else {
+    },
+    onSuccess: () => {
       toast({
         title: 'Archived',
-        description: 'Conversation moved to Archive.'
+        description: 'Email moved to Archive.'
       });
+    },
+    onSettled: () => {
+      // Always refetch to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['emails'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
     }
-    await refillAfterChange();
-  };
-  const deleteSelected = async () => {
+  });
+
+  const archiveSelected = () => {
     if (!selected) return;
-    const removingId = selected.id;
-    setEmails(prev => prev.filter(e => e.id !== removingId));
-    setSelectedId(prev => prev === removingId ? undefined : prev);
-    const {
-      error
-    } = await supabase.functions.invoke('gmail-actions', {
-      body: {
-        action: 'modify',
-        id: selected.gmailId,
-        add: ['TRASH'],
-        remove: []
+    archiveMutation.mutate(selected);
+  };
+  // Optimistic delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (email: Email) => {
+      const { error } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'modify',
+          id: email.gmailId,
+          add: ['TRASH'],
+          remove: []
+        }
+      });
+      if (error) throw error;
+      return email;
+    },
+    onMutate: async (email) => {
+      await queryClient.cancelQueries({ queryKey: ['emails'] });
+      const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
+      
+      queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          emails: old.emails.filter((e: Email) => e.id !== email.id),
+          total: old.total - 1
+        };
+      });
+      
+      setEmails(prev => prev.filter(e => e.id !== email.id));
+      setSelectedId(prev => prev === email.id ? undefined : prev);
+      
+      return { previousEmails };
+    },
+    onError: (err, email, context) => {
+      if (context?.previousEmails) {
+        queryClient.setQueryData(['emails', mailbox, query, currentPage], context.previousEmails);
       }
-    });
-    if (error) {
+      refetchEmails();
       toast({
         title: 'Failed to delete',
-        description: error.message
+        description: 'Could not delete email. Please try again.'
       });
-    } else {
+    },
+    onSuccess: () => {
       toast({
         title: 'Deleted',
-        description: 'Conversation moved to Trash.'
+        description: 'Email moved to Trash.'
       });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['emails'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
     }
-    await refillAfterChange();
+  });
+
+  const deleteSelected = () => {
+    if (!selected) return;
+    deleteMutation.mutate(selected);
   };
   const toggleReadFor = async (email: Email) => {
     const willBeUnread = !email.unread ? true : false; // toggle
@@ -592,31 +659,59 @@ const Index = () => {
       unread: willBeUnread
     } : e));
   };
-  const toggleStar = async (email: Email) => {
-    const willBeStarred = !email.starred;
-    const add = willBeStarred ? ['STARRED'] : [];
-    const remove = willBeStarred ? [] : ['STARRED'];
-    const {
-      error
-    } = await supabase.functions.invoke('gmail-actions', {
-      body: {
-        action: 'modify',
-        id: email.gmailId,
-        add,
-        remove
-      }
-    });
-    if (error) {
-      toast({
-        title: 'Failed',
-        description: error.message
+  // Optimistic star toggle mutation
+  const starMutation = useMutation({
+    mutationFn: async ({ email, willBeStarred }: { email: Email; willBeStarred: boolean }) => {
+      const add = willBeStarred ? ['STARRED'] : [];
+      const remove = willBeStarred ? [] : ['STARRED'];
+      const { error } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'modify',
+          id: email.gmailId,
+          add,
+          remove
+        }
       });
-      return;
+      if (error) throw error;
+      return { email, willBeStarred };
+    },
+    onMutate: async ({ email, willBeStarred }) => {
+      await queryClient.cancelQueries({ queryKey: ['emails'] });
+      const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
+      
+      // Optimistically update star status
+      queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          emails: old.emails.map((e: Email) => 
+            e.id === email.id ? { ...e, starred: willBeStarred } : e
+          )
+        };
+      });
+      
+      setEmails(prev => prev.map(e => e.id === email.id ? { ...e, starred: willBeStarred } : e));
+      
+      return { previousEmails };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousEmails) {
+        queryClient.setQueryData(['emails', mailbox, query, currentPage], context.previousEmails);
+      }
+      refetchEmails();
+      toast({
+        title: 'Failed to update',
+        description: 'Could not update star status. Please try again.'
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['emails'] });
     }
-    setEmails(prev => prev.map(e => e.id === email.id ? {
-      ...e,
-      starred: willBeStarred
-    } : e));
+  });
+
+  const toggleStar = (email: Email) => {
+    const willBeStarred = !email.starred;
+    starMutation.mutate({ email, willBeStarred });
   };
   const markAsRead = async (email: Email) => {
     if (!email.unread) return; // Already read, nothing to do
