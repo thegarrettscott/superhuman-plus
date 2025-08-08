@@ -151,7 +151,10 @@ const Index = () => {
     }));
 
     setEmails(mapped);
-    if (mapped.length > 0 && !selectedId) setSelectedId(mapped[0].id);
+    // Only select first email if no email is currently selected
+    if (mapped.length > 0 && !selectedId) {
+      setSelectedId(mapped[0].id);
+    }
 
     // Proactive bodies
     mapped.forEach(async (email) => {
