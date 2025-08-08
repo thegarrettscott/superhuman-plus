@@ -74,6 +74,10 @@ const Index = () => {
   const [totalEmails, setTotalEmails] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [totalUnreads, setTotalUnreads] = useState(0);
+  const [footerReplyOpen, setFooterReplyOpen] = useState(false);
+  const [footerTo, setFooterTo] = useState("");
+  const [footerSubject, setFooterSubject] = useState("");
+  const [footerBody, setFooterBody] = useState("");
   const PAGE_SIZE = 50;
   async function loadCategoriesAndUnreads() {
     // Load all unique categories/labels from user's emails
@@ -495,10 +499,8 @@ const Index = () => {
         case "r":
           {
             e.preventDefault();
-            toast({
-              title: "Reply",
-              description: "Reply interface opened inline"
-            });
+            const current = selected;
+            if (current) openReplyFooter(current);
             break;
           }
       }
@@ -750,8 +752,41 @@ const Index = () => {
         remove: ['UNREAD']
       }
     });
-    if (gmailError) {
-      console.warn('Failed to mark email as read in Gmail:', gmailError);
+     if (gmailError) {
+       console.warn('Failed to mark email as read in Gmail:', gmailError);
+     }
+   };
+
+  const openReplyFooter = (email: Email) => {
+    const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
+    const senderEmail = emailMatch ? emailMatch[1] || emailMatch[0] : email.from;
+    const replySubject = email.subject.startsWith('Re: ') ? email.subject : `Re: ${email.subject}`;
+    const quoted = `\n\nOn ${email.date}, ${email.from} wrote:\n> ${email.body?.split('\n').join('\n> ')}`;
+    setFooterTo(senderEmail);
+    setFooterSubject(replySubject);
+    setFooterBody(quoted);
+    setFooterReplyOpen(true);
+  };
+
+  const sendFooterReply = async () => {
+    const toList = footerTo.split(',').map(s => s.trim()).filter(Boolean);
+    if (toList.length === 0) {
+      toast({ title: 'Add recipient', description: 'Please add at least one email address.' });
+      return;
+    }
+    try {
+      const { error } = await supabase.functions.invoke('gmail-actions', {
+        body: { action: 'send', to: toList, subject: footerSubject, text: footerBody }
+      });
+      if (error) {
+        toast({ title: 'Send failed', description: error.message });
+        return;
+      }
+      toast({ title: 'Sent', description: 'Reply delivered.' });
+      setFooterReplyOpen(false);
+      setFooterBody('');
+    } catch (e) {
+      toast({ title: 'Send failed', description: 'Unexpected error' });
     }
   };
 
@@ -1005,12 +1040,7 @@ const Index = () => {
                 }}>
                       {selected?.unread ? 'Mark as read' : 'Mark as unread'}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
-                      toast({
-                        title: "Reply",
-                        description: "Reply interface available in email content"
-                      });
-                    }}>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => selected && openReplyFooter(selected)}>
                       <Reply className="mr-1 h-3 w-3" /> Reply
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
@@ -1021,7 +1051,7 @@ const Index = () => {
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
-                  <EmailContent email={selected} onSendReply={handleSendReply} />
+                  <EmailContent email={selected} />
                 </div>
               </ScrollArea>
             </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">
