@@ -410,7 +410,7 @@ const Index = () => {
                 {filtered.map((m) => (
                   <div key={m.id}>
                     <button
-                      className={`w-full text-left px-3 py-2 focus:outline-none transition-colors ${
+                      className={`w-full text-left px-3 py-1.5 focus:outline-none transition-colors ${
                         selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
                       }`}
                       onClick={() => setSelectedId(m.id)}
@@ -433,12 +433,12 @@ const Index = () => {
                         </button>
                         <div className="flex min-w-0 flex-col flex-1 gap-0.5">
                           <div className="flex items-center gap-2">
-                            <p className={`truncate text-sm ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
+                            <p className={`truncate text-sm leading-tight ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
                             {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">{m.from} — {m.snippet}</p>
+                          <p className="truncate text-xs leading-tight text-muted-foreground">{m.from} — {m.snippet}</p>
                         </div>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
+                        <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                       </div>
                     </button>
                   </div>
