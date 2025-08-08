@@ -113,6 +113,7 @@ const Index = () => {
     queryFn: () => loadEmailsWithCache(currentPage, mailbox),
     staleTime: 30000, // Cache for 30 seconds
     gcTime: 300000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false, // Prevent refetch on window focus
   });
 
   // Cache categories and unreads
@@ -302,12 +303,12 @@ const Index = () => {
     if (emailData) {
       setEmails(emailData.emails);
       setTotalEmails(emailData.total);
-      // Select first email if none selected
-      if (emailData.emails.length > 0 && !selectedId) {
+      // Only auto-select first email on initial load, not on refresh
+      if (emailData.emails.length > 0 && !selectedId && emails.length === 0) {
         setSelectedId(emailData.emails[0].id);
       }
     }
-  }, [emailData, selectedId]);
+  }, [emailData, selectedId, emails.length]);
 
   // Update categories when data changes
   useEffect(() => {
@@ -353,9 +354,15 @@ const Index = () => {
             max: 50
           }
         });
-        // Invalidate cache to trigger refresh
-        queryClient.invalidateQueries({ queryKey: ['emails'] });
-        queryClient.invalidateQueries({ queryKey: ['categories'] });
+        // Use refetchOnWindowFocus: false and only invalidate in background
+        queryClient.invalidateQueries({ 
+          queryKey: ['emails'], 
+          refetchType: 'none' // Don't immediately refetch, just mark as stale
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ['categories'],
+          refetchType: 'none'
+        });
       } catch (e) {
         console.warn('Auto-import failed:', e);
       }
