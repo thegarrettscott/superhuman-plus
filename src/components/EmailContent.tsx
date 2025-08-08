@@ -100,22 +100,99 @@ export const EmailContent = ({ email, onSendReply }: EmailContentProps) => {
 
   if (email.bodyHtml) {
     return (
-      <div 
-        ref={containerRef}
-        className="email-content-container"
-        style={{
-          // CSS containment to prevent style leakage
-          contain: 'layout style',
-          // Ensure email content doesn't break our layout
-          maxWidth: '100%',
-          wordWrap: 'break-word',
-          overflowWrap: 'break-word',
-          // Reset any potential inherited styles
-          lineHeight: '1.6',
-          fontSize: '14px',
-          color: 'hsl(var(--foreground))',
-        }}
-      />
+      <div className="p-6">
+        <div className="border-b pb-4 mb-4">
+          <h2 className="text-xl font-semibold mb-2">{email.subject}</h2>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>From: {email.from}</span>
+            <span>{email.date}</span>
+          </div>
+        </div>
+        
+        <div 
+          ref={containerRef}
+          className="email-content-container mb-6"
+          style={{
+            // CSS containment to prevent style leakage
+            contain: 'layout style',
+            // Ensure email content doesn't break our layout
+            maxWidth: '100%',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            // Reset any potential inherited styles
+            lineHeight: '1.6',
+            fontSize: '14px',
+            color: 'hsl(var(--foreground))',
+          }}
+        />
+        
+        {!showReply && (
+          <div className="flex gap-2 pt-4 border-t">
+            <Button 
+              onClick={handleStartReply} 
+              variant="outline" 
+              size="sm"
+              className="gap-2"
+            >
+              <Reply className="h-4 w-4" />
+              Reply
+            </Button>
+          </div>
+        )}
+
+        {showReply && (
+          <div className="mt-6 border-t pt-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Reply</h3>
+                <Button variant="ghost" size="sm" onClick={handleCancelReply}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">To:</label>
+                  <Input 
+                    value={replyTo} 
+                    onChange={(e) => setReplyTo(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Subject:</label>
+                  <Input 
+                    value={replySubject} 
+                    onChange={(e) => setReplySubject(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Message:</label>
+                  <Textarea 
+                    value={replyBody} 
+                    onChange={(e) => setReplyBody(e.target.value)}
+                    placeholder="Type your reply..."
+                    className="mt-1 min-h-[120px]"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-2">
+                <Button onClick={handleSendReply} className="gap-2">
+                  <Send className="h-4 w-4" />
+                  Send
+                </Button>
+                <Button variant="outline" onClick={handleCancelReply}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
