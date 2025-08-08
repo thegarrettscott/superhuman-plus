@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -142,6 +143,46 @@ const Index = () => {
   const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const navigate = useNavigate();
+
+  async function loadEmails() {
+    const { data, error } = await supabase
+      .from('email_messages')
+      .select('*')
+      .order('internal_date', { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error('loadEmails error', error);
+      return;
+    }
+    const mapped: Email[] = ((data as any[]) || []).map((row: any) => ({
+      id: row.id,
+      from: row.from_address || '',
+      subject: row.subject || '(no subject)',
+      snippet: row.snippet || '',
+      date: row.internal_date ? new Date(row.internal_date).toLocaleString() : '',
+      unread: !row.is_read,
+      starred: false,
+      labels: ['inbox'],
+      body: row.body_text || '',
+    }));
+    if (mapped.length) {
+      setEmails(mapped);
+      setSelectedId(mapped[0].id);
+    }
+  }
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) navigate('/auth');
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate('/auth');
+      else loadEmails();
+    });
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     const base = emails.filter((e) => {
@@ -236,6 +277,16 @@ const Index = () => {
   const toggleStar = (id: string) =>
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e)));
 
+  const handleImport = async () => {
+    const { data, error } = await supabase.functions.invoke("gmail-actions", { body: { action: "import" } });
+    if (error) {
+      toast({ title: "Import failed", description: error.message });
+      return;
+    }
+    toast({ title: "Imported", description: `${data?.imported ?? 0} messages imported.` });
+    await loadEmails();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header onMouseMove={onPointerMove} className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -275,6 +326,7 @@ const Index = () => {
                 }
                 window.location.href = data.authUrl;
               }}>Connect Gmail</Button>
+              <Button variant="outline" onClick={handleImport}>Import Emails</Button>
               <Button onClick={() => setComposeOpen(true)}>Compose</Button>
             </div>
           </div>
