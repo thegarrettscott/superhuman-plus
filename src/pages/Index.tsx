@@ -28,6 +28,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { EmailContent } from "@/components/EmailContent";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -811,11 +812,7 @@ const Index = () => {
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
                   <div className="text-sm text-muted-foreground">From: {selected.from}</div>
-                  {selected.bodyHtml ? (
-                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selected.bodyHtml }} />
-                  ) : (
-                    <p className="leading-7 whitespace-pre-wrap">{selected.body}</p>
-                  )}
+                  <EmailContent htmlContent={selected.bodyHtml} textContent={selected.body} />
                 </div>
               </ScrollArea>
             </div>
