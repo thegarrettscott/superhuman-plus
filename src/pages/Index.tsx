@@ -535,19 +535,19 @@ const Index = () => {
                              <StarOff className="h-3 w-3 text-muted-foreground" />
                            )}
                          </button>
-                           <div className="flex min-w-0 flex-col flex-1 overflow-hidden" style={{height: '48px', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
-                             <div className="flex items-center gap-2 min-w-0" style={{height: '20px', marginBottom: '4px'}}>
-                                <p className={`flex-1 min-w-0 truncate text-sm ${m.unread ? "font-semibold" : "font-normal"}`} style={{lineHeight: '20px'}}>
-                                  {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
-                                </p>
-                                <div className="w-2 h-2 shrink-0">
-                                  {m.unread && <div className="w-2 h-2 bg-primary rounded-full" />}
-                                </div>
-                              </div>
-                              <p className="min-w-0 truncate text-xs text-muted-foreground overflow-hidden" style={{height: '16px', lineHeight: '16px'}}>
-                                {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                          <div className="flex min-w-0 flex-col flex-1 gap-1 overflow-hidden h-12 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                                {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
                               </p>
-                           </div>
+                              <div className="w-2 h-2 shrink-0">
+                                {m.unread && <div className="w-2 h-2 bg-primary rounded-full" />}
+                              </div>
+                            </div>
+                            <p className="min-w-0 truncate text-xs text-muted-foreground leading-none">
+                              {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                            </p>
+                          </div>
                          <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                        </div>
                      </button>
