@@ -143,22 +143,15 @@ const Index = () => {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
-      // Check for SENT label first, fallback to emails from user's own address
+      // Get user's email address and filter by from_address
       const { data: accountData } = await supabase.from('email_accounts').select('email_address').limit(1);
       const userEmail = accountData?.[0]?.email_address;
       
       if (userEmail) {
-        // Use separate queries for SENT label and user's email address
-        const sentQuery = countQuery.contains('label_ids', ['SENT']);
-        const userEmailQuery = countQuery.ilike('from_address', `%${userEmail}%`);
-        
-        const sentDataQuery = dataQuery.contains('label_ids', ['SENT']);
-        const userEmailDataQuery = dataQuery.ilike('from_address', `%${userEmail}%`);
-        
-        // For now, just use the user email filter since no SENT labels exist
-        countQuery = userEmailQuery;
-        dataQuery = userEmailDataQuery;
+        countQuery = countQuery.eq('from_address', userEmail);
+        dataQuery = dataQuery.eq('from_address', userEmail);
       } else {
+        // Fallback to SENT label if no user email found
         countQuery = countQuery.contains('label_ids', ['SENT']);
         dataQuery = dataQuery.contains('label_ids', ['SENT']);
       }
