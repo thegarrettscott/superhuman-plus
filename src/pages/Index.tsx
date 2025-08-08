@@ -123,7 +123,7 @@ const Index = () => {
     if (count !== null) setTotalUnreads(count);
   }
 
-  async function loadEmails(page = 1): Promise<number> {
+  async function loadEmails(page = 1, targetMailbox = mailbox): Promise<number> {
     const offset = (page - 1) * PAGE_SIZE;
 
     // Build base filter by mailbox and search
@@ -136,22 +136,22 @@ const Index = () => {
       .order('internal_date', { ascending: false });
 
     // Mailbox filters
-    if (mailbox === 'inbox') {
+    if (targetMailbox === 'inbox') {
       countQuery = countQuery.contains('label_ids', ['INBOX']);
       dataQuery = dataQuery.contains('label_ids', ['INBOX']);
-    } else if (mailbox === 'starred') {
+    } else if (targetMailbox === 'starred') {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
-    } else if (mailbox === 'sent') {
+    } else if (targetMailbox === 'sent') {
       countQuery = countQuery.contains('label_ids', ['SENT']);
       dataQuery = dataQuery.contains('label_ids', ['SENT']);
-    } else if (mailbox === 'archived') {
+    } else if (targetMailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
       dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
-    } else if (mailbox !== 'inbox' && mailbox !== 'starred' && mailbox !== 'sent' && mailbox !== 'archived') {
+    } else if (targetMailbox !== 'inbox' && targetMailbox !== 'starred' && targetMailbox !== 'sent' && targetMailbox !== 'archived') {
       // Custom category/label
-      countQuery = countQuery.contains('label_ids', [mailbox]);
-      dataQuery = dataQuery.contains('label_ids', [mailbox]);
+      countQuery = countQuery.contains('label_ids', [targetMailbox]);
+      dataQuery = dataQuery.contains('label_ids', [targetMailbox]);
     }
 
     // Search filter
@@ -479,6 +479,13 @@ const Index = () => {
     setCurrentPage(1);
   };
 
+  const switchMailbox = async (newMailbox: string) => {
+    setMailbox(newMailbox);
+    setCurrentPage(1);
+    setSelectedId(undefined);
+    await loadEmails(1, newMailbox);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header onMouseMove={onPointerMove} className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -537,23 +544,23 @@ const Index = () => {
               label="Inbox"
               active={mailbox === "inbox"}
               count={emails.filter((e) => e.labels.includes("inbox") && e.unread).length}
-              onClick={() => setMailbox("inbox")}
+              onClick={() => switchMailbox("inbox")}
             />
             <SidebarItem
               label="Sent"
               active={mailbox === "sent"}
-              onClick={() => setMailbox("sent")}
+              onClick={() => switchMailbox("sent")}
             />
             <SidebarItem
               label="Starred"
               active={mailbox === "starred"}
               count={emails.filter((e) => e.starred && e.unread).length}
-              onClick={() => setMailbox("starred")}
+              onClick={() => switchMailbox("starred")}
             />
             <SidebarItem
               label="Archived"
               active={mailbox === "archived"}
-              onClick={() => setMailbox("archived")}
+              onClick={() => switchMailbox("archived")}
             />
             
             {categories.length > 0 && (
@@ -567,7 +574,7 @@ const Index = () => {
                     label={category}
                     active={mailbox === category}
                     count={emails.filter((e) => e.labels.includes(category.toLowerCase()) && e.unread).length}
-                    onClick={() => setMailbox(category)}
+                    onClick={() => switchMailbox(category)}
                   />
                 ))}
               </>
@@ -747,21 +754,21 @@ const Index = () => {
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Navigation">
-            <CommandItem onSelect={() => setMailbox("inbox")}>
+            <CommandItem onSelect={() => switchMailbox("inbox")}>
               Inbox
               <CommandShortcut>I</CommandShortcut>
             </CommandItem>
-            <CommandItem onSelect={() => setMailbox("sent")}>
+            <CommandItem onSelect={() => switchMailbox("sent")}>
               Sent
             </CommandItem>
-            <CommandItem onSelect={() => setMailbox("starred")}>
+            <CommandItem onSelect={() => switchMailbox("starred")}>
               Starred
             </CommandItem>
-            <CommandItem onSelect={() => setMailbox("archived")}>
+            <CommandItem onSelect={() => switchMailbox("archived")}>
               Archived
             </CommandItem>
             {categories.map((category) => (
-              <CommandItem key={category} onSelect={() => setMailbox(category)}>
+              <CommandItem key={category} onSelect={() => switchMailbox(category)}>
                 {category}
               </CommandItem>
             ))}
