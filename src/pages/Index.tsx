@@ -514,37 +514,37 @@ const Index = () => {
                 {filtered.map((m) => (
                   <div key={m.id}>
                      <button
-                       className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors ${
+                       className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors overflow-hidden ${
                          selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
                        }`}
                        onClick={() => setSelectedId(m.id)}
                        aria-current={selected?.id === m.id}
                      >
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="shrink-0 text-xs p-1"
-                          aria-label={m.starred ? "Unstar" : "Star"}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleStar(m);
-                          }}
-                        >
-                          {m.starred ? (
-                            <Star className="h-3 w-3 text-primary fill-primary" />
-                          ) : (
-                            <StarOff className="h-3 w-3 text-muted-foreground" />
-                          )}
-                        </button>
-                        <div className="flex min-w-0 flex-col flex-1 gap-0.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <p className={`flex-1 min-w-0 truncate text-sm leading-tight ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
-                            {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
-                          </div>
-                          <p className="min-w-0 truncate text-xs leading-tight text-muted-foreground">{m.from} — {m.snippet}</p>
-                        </div>
-                        <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
-                      </div>
-                    </button>
+                       <div className="flex items-center gap-2 h-full">
+                         <button
+                           className="shrink-0 text-xs p-1"
+                           aria-label={m.starred ? "Unstar" : "Star"}
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             toggleStar(m);
+                           }}
+                         >
+                           {m.starred ? (
+                             <Star className="h-3 w-3 text-primary fill-primary" />
+                           ) : (
+                             <StarOff className="h-3 w-3 text-muted-foreground" />
+                           )}
+                         </button>
+                         <div className="flex min-w-0 flex-col flex-1 gap-0.5 overflow-hidden">
+                           <div className="flex items-center gap-2 min-w-0">
+                             <p className={`flex-1 min-w-0 truncate text-sm leading-tight ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
+                             {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                           </div>
+                           <p className="min-w-0 truncate text-xs leading-tight text-muted-foreground">{m.from} — {m.snippet}</p>
+                         </div>
+                         <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
+                       </div>
+                     </button>
                   </div>
                 ))}
               </div>
