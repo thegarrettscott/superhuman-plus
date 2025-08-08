@@ -90,26 +90,52 @@ const Index = () => {
   const PAGE_SIZE = 50;
 
 
-  async function loadEmails(page = 1) {
+  async function loadEmails(page = 1): Promise<number> {
     const offset = (page - 1) * PAGE_SIZE;
-    
-    // Get total count
-    const { count } = await supabase
+
+    // Build base filter by mailbox and search
+    let countQuery = supabase
       .from('email_messages')
       .select('*', { count: 'exact', head: true });
-    if (count !== null) setTotalEmails(count);
-    
-    const { data, error } = await supabase
+    let dataQuery = supabase
       .from('email_messages')
       .select('*')
-      .order('internal_date', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-      
+      .order('internal_date', { ascending: false });
+
+    // Mailbox filters
+    if (mailbox === 'inbox') {
+      countQuery = countQuery.contains('label_ids', ['INBOX']);
+      dataQuery = dataQuery.contains('label_ids', ['INBOX']);
+    } else if (mailbox === 'starred') {
+      countQuery = countQuery.contains('label_ids', ['STARRED']);
+      dataQuery = dataQuery.contains('label_ids', ['STARRED']);
+    } else if (mailbox === 'archived') {
+      countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
+      dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
+    }
+
+    // Search filter
+    const q = query.trim();
+    if (q) {
+      const like = `%${q}%`;
+      countQuery = countQuery.or(
+        `subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`
+      );
+      dataQuery = dataQuery.or(
+        `subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`
+      );
+    }
+
+    const { count } = await countQuery;
+    if (count !== null) setTotalEmails(count);
+
+    const { data, error } = await dataQuery.range(offset, offset + PAGE_SIZE - 1);
+
     if (error) {
       console.error('loadEmails error', error);
-      return;
+      return 0;
     }
-    
+
     const mapped: Email[] = ((data as any[]) || []).map((row: any) => ({
       id: row.id,
       gmailId: row.gmail_message_id,
@@ -123,14 +149,11 @@ const Index = () => {
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined,
     }));
-    
-    // Always set emails and select first email for any page
+
     setEmails(mapped);
-    if (mapped.length > 0) {
-      setSelectedId(mapped[0].id);
-    }
-    
-    // Load bodies proactively for all emails on current page
+    if (mapped.length > 0) setSelectedId(mapped[0].id);
+
+    // Proactive bodies
     mapped.forEach(async (email) => {
       if (!email.body) {
         const { data } = await supabase.functions.invoke('gmail-actions', {
@@ -143,8 +166,8 @@ const Index = () => {
         }
       }
     });
-    
-    // Auto-import only on first page if no emails exist
+
+    // Auto-import only on first page if empty
     if (mapped.length === 0 && !autoImported && page === 1) {
       setAutoImported(true);
       const { data: accRows, error: accErr } = await supabase
@@ -153,7 +176,7 @@ const Index = () => {
         .limit(1);
       if (accErr) {
         console.warn('email_accounts check error', accErr);
-        return;
+        return 0;
       }
       if (accRows && accRows.length > 0) {
         toast({ title: 'Importing…', description: 'Fetching your latest emails.' });
@@ -162,10 +185,12 @@ const Index = () => {
           toast({ title: 'Import failed', description: impError.message });
         } else {
           toast({ title: 'Imported', description: `${impData?.imported ?? 0} messages imported.` });
-          await loadEmails(1);
+          return await loadEmails(1);
         }
       }
     }
+
+    return mapped.length;
   }
 
   useEffect(() => {
@@ -257,6 +282,12 @@ const Index = () => {
           archiveSelected();
           break;
         }
+        case "backspace":
+        case "delete": {
+          e.preventDefault();
+          deleteSelected();
+          break;
+        }
         case "r": {
           e.preventDefault();
           toast({ title: "Reply", description: "Reply opened (mock)", });
@@ -269,23 +300,48 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, selectedId]);
 
+  const refillAfterChange = async () => {
+    const len = await loadEmails(currentPage);
+    if (len === 0 && currentPage > 1) {
+      const newPage = currentPage - 1;
+      setCurrentPage(newPage);
+      await loadEmails(newPage);
+    }
+  };
+
   const archiveSelected = async () => {
     if (!selected) return;
+    const removingId = selected.id;
+    // Optimistic remove from current page
+    setEmails((prev) => prev.filter((e) => e.id !== removingId));
+    setSelectedId((prev) => (prev === removingId ? undefined : prev));
+
     const { error } = await supabase.functions.invoke('gmail-actions', {
       body: { action: 'modify', id: selected.gmailId, add: [], remove: ['INBOX'] },
     });
     if (error) {
       toast({ title: 'Failed to archive', description: error.message });
-      return;
+    } else {
+      toast({ title: 'Archived', description: 'Conversation moved to Archive.' });
     }
-    setEmails((prev) =>
-      prev.map((e) =>
-        e.id === selected.id
-          ? { ...e, labels: ['archived'], unread: false }
-          : e
-      )
-    );
-    toast({ title: 'Archived', description: 'Conversation moved to Archive.' });
+    await refillAfterChange();
+  };
+
+  const deleteSelected = async () => {
+    if (!selected) return;
+    const removingId = selected.id;
+    setEmails((prev) => prev.filter((e) => e.id !== removingId));
+    setSelectedId((prev) => (prev === removingId ? undefined : prev));
+
+    const { error } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'modify', id: selected.gmailId, add: ['TRASH'], remove: [] },
+    });
+    if (error) {
+      toast({ title: 'Failed to delete', description: error.message });
+    } else {
+      toast({ title: 'Deleted', description: 'Conversation moved to Trash.' });
+    }
+    await refillAfterChange();
   };
 
   const toggleReadFor = async (email: Email) => {
