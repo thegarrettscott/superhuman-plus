@@ -1,15 +1,28 @@
 import { useEffect, useRef } from 'react';
 
+type Email = {
+  id: string;
+  gmailId: string;
+  from: string;
+  subject: string;
+  snippet: string;
+  date: string;
+  unread: boolean;
+  starred: boolean;
+  labels: string[];
+  body: string;
+  bodyHtml?: string;
+};
+
 interface EmailContentProps {
-  htmlContent?: string;
-  textContent?: string;
+  email: Email;
 }
 
-export const EmailContent = ({ htmlContent, textContent }: EmailContentProps) => {
+export const EmailContent = ({ email }: EmailContentProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (htmlContent && containerRef.current) {
+    if (email.bodyHtml && containerRef.current) {
       // Reset all potential style interference
       const container = containerRef.current;
       
@@ -18,7 +31,7 @@ export const EmailContent = ({ htmlContent, textContent }: EmailContentProps) =>
       
       // Create an isolated container for the email content
       const emailContainer = document.createElement('div');
-      emailContainer.innerHTML = htmlContent;
+      emailContainer.innerHTML = email.bodyHtml;
       
       // Remove any script tags for security
       const scripts = emailContainer.querySelectorAll('script');
@@ -47,9 +60,9 @@ export const EmailContent = ({ htmlContent, textContent }: EmailContentProps) =>
       
       container.appendChild(emailContainer);
     }
-  }, [htmlContent]);
+  }, [email.bodyHtml]);
 
-  if (htmlContent) {
+  if (email.bodyHtml) {
     return (
       <div 
         ref={containerRef}
@@ -71,8 +84,17 @@ export const EmailContent = ({ htmlContent, textContent }: EmailContentProps) =>
   }
 
   return (
-    <p className="leading-7 whitespace-pre-wrap text-foreground">
-      {textContent}
-    </p>
+    <div className="p-6">
+      <div className="border-b pb-4 mb-4">
+        <h2 className="text-xl font-semibold mb-2">{email.subject}</h2>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>From: {email.from}</span>
+          <span>{email.date}</span>
+        </div>
+      </div>
+      <div className="leading-7 whitespace-pre-wrap text-foreground">
+        {email.body}
+      </div>
+    </div>
   );
 };

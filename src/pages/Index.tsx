@@ -660,7 +660,17 @@ const Index = () => {
             <h1 className="text-lg font-semibold tracking-tight">Velocity Mail — Superhuman-style Gmail client</h1>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:block w-72">
-                <Input aria-label="Search mail" placeholder="Search (Cmd/Ctrl+K)" value={query} onChange={e => setQuery(e.target.value)} />
+                <Input 
+                  aria-label="Search mail" 
+                  placeholder="Search (Cmd/Ctrl+K)" 
+                  value={query} 
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && query.trim()) {
+                      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+                    }
+                  }}
+                />
               </div>
               <Button variant="secondary" onClick={async () => {
               const {
@@ -849,7 +859,7 @@ const Index = () => {
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
-                  <EmailContent htmlContent={selected.bodyHtml} textContent={selected.body} />
+                  <EmailContent email={selected} />
                 </div>
               </ScrollArea>
             </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">
