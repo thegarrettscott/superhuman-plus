@@ -28,8 +28,8 @@ async function refreshAccessToken(refresh_token: string) {
   return res.json();
 }
 
-async function listRecentMessageIds(access_token: string, max = 20) {
-  const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&labelIds=INBOX`;
+async function listRecentMessageIds(access_token: string, max = 20, labelId = "INBOX") {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&labelIds=${labelId}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}` } });
   if (!res.ok) throw new Error(`List messages failed: ${await res.text()}`);
   const json = await res.json();
@@ -120,6 +120,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action || "import";
+    const mailbox: string = body.mailbox || "inbox";
     const maxRequested = typeof body.max === "number" ? body.max : Number(body.max);
     const max = Math.min(Number.isFinite(maxRequested) ? maxRequested : 20, 100);
     if (action === "import") {
@@ -156,10 +157,12 @@ serve(async (req) => {
         .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
         .eq("id", account.id);
 
-      // Fetch recent messages
+      // Fetch recent messages based on mailbox
       let ids: string[] = [];
       try {
-        ids = await listRecentMessageIds(access_token, max);
+        const labelId = mailbox === "sent" ? "SENT" : "INBOX";
+        console.log(`Fetching ${max} messages from ${labelId} for user ${user.id}`);
+        ids = await listRecentMessageIds(access_token, max, labelId);
       } catch (err) {
         console.error("gmail-actions listRecentMessageIds error:", err);
         return new Response(

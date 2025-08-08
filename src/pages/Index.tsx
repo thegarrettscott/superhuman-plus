@@ -143,23 +143,24 @@ const Index = () => {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
-      // Get user's email address and filter by from_address
-      const { data: accountData } = await supabase.from('email_accounts').select('email_address').limit(1);
-      const userEmail = accountData?.[0]?.email_address;
-      
-      if (userEmail) {
-        // Filter by exact match of user's email address in from_address
-        countQuery = countQuery.eq('from_address', userEmail);
-        dataQuery = dataQuery.eq('from_address', userEmail);
-        
-        console.log(`Searching for sent emails from: ${userEmail}`);
-      } else {
-        // Fallback to SENT label if no user email found
-        countQuery = countQuery.contains('label_ids', ['SENT']);
-        dataQuery = dataQuery.contains('label_ids', ['SENT']);
-        
-        console.log('No user email found, searching for SENT label');
+      // First try to import sent emails from Gmail
+      try {
+        console.log('Importing sent emails from Gmail...');
+        const { error: importError } = await supabase.functions.invoke('gmail-actions', {
+          body: { action: 'import', mailbox: 'sent', max: 50 }
+        });
+        if (importError) {
+          console.error('Failed to import sent emails:', importError);
+        } else {
+          console.log('Successfully imported sent emails from Gmail');
+        }
+      } catch (err) {
+        console.error('Error importing sent emails:', err);
       }
+      
+      // Filter by SENT label
+      countQuery = countQuery.contains('label_ids', ['SENT']);
+      dataQuery = dataQuery.contains('label_ids', ['SENT']);
     } else if (targetMailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
       dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
