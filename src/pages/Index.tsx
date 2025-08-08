@@ -535,14 +535,16 @@ const Index = () => {
                              <StarOff className="h-3 w-3 text-muted-foreground" />
                            )}
                          </button>
-                          <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
-                            <div className="flex items-center gap-2 min-w-0">
-                               <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                          <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden h-full py-2">
+                            <div className="flex items-center gap-2 min-w-0 h-5">
+                               <p className={`flex-1 min-w-0 truncate text-sm leading-5 ${m.unread ? "font-semibold" : "font-normal"}`}>
                                  {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
                                </p>
-                               {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                               <div className="w-2 h-2 shrink-0">
+                                 {m.unread && <div className="w-2 h-2 bg-primary rounded-full" />}
+                               </div>
                              </div>
-                             <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
+                             <p className="min-w-0 truncate text-xs leading-4 text-muted-foreground overflow-hidden h-4">
                                {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
                              </p>
                          </div>
