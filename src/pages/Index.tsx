@@ -76,7 +76,7 @@ const Index = () => {
     }
   }, []);
 
-  const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred">("inbox");
+  const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred" | "sent" | string>("inbox");
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
@@ -87,8 +87,41 @@ const Index = () => {
   const [replyDraft, setReplyDraft] = useState<{ to?: string; subject?: string; body?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmails, setTotalEmails] = useState(0);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [totalUnreads, setTotalUnreads] = useState(0);
   const PAGE_SIZE = 50;
 
+  async function loadCategoriesAndUnreads() {
+    // Load all unique categories/labels from user's emails
+    const { data: labelData } = await supabase
+      .from('email_messages')
+      .select('label_ids')
+      .not('label_ids', 'is', null);
+    
+    if (labelData) {
+      const allLabels = new Set<string>();
+      labelData.forEach((row: any) => {
+        if (Array.isArray(row.label_ids)) {
+          row.label_ids.forEach((label: string) => {
+            // Include custom categories but exclude system labels
+            if (!['INBOX', 'STARRED', 'SENT', 'TRASH', 'SPAM', 'DRAFT', 'UNREAD', 'IMPORTANT'].includes(label)) {
+              allLabels.add(label);
+            }
+          });
+        }
+      });
+      setCategories(Array.from(allLabels).sort());
+    }
+
+    // Load total unread count across all emails
+    const { count } = await supabase
+      .from('email_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .not('label_ids', 'cs', ['TRASH']);
+    
+    if (count !== null) setTotalUnreads(count);
+  }
 
   async function loadEmails(page = 1): Promise<number> {
     const offset = (page - 1) * PAGE_SIZE;
@@ -109,9 +142,16 @@ const Index = () => {
     } else if (mailbox === 'starred') {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
+    } else if (mailbox === 'sent') {
+      countQuery = countQuery.contains('label_ids', ['SENT']);
+      dataQuery = dataQuery.contains('label_ids', ['SENT']);
     } else if (mailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
       dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
+    } else if (mailbox !== 'inbox' && mailbox !== 'starred' && mailbox !== 'sent' && mailbox !== 'archived') {
+      // Custom category/label
+      countQuery = countQuery.contains('label_ids', [mailbox]);
+      dataQuery = dataQuery.contains('label_ids', [mailbox]);
     }
 
     // Search filter
@@ -145,7 +185,7 @@ const Index = () => {
       date: row.internal_date ? new Date(row.internal_date).toLocaleString() : '',
       unread: !row.is_read,
       starred: Array.isArray(row.label_ids) && row.label_ids.includes('STARRED'),
-      labels: Array.isArray(row.label_ids) && row.label_ids.includes('INBOX') ? ['inbox'] : ['archived'],
+      labels: Array.isArray(row.label_ids) ? row.label_ids.map((label: string) => label.toLowerCase()) : [],
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined,
     }));
@@ -202,7 +242,10 @@ const Index = () => {
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate('/auth');
-      else loadEmails(1);
+      else {
+        loadCategoriesAndUnreads();
+        loadEmails(1);
+      }
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,6 +267,7 @@ const Index = () => {
       } catch (e) {
         console.warn('Auto-import failed:', e);
       }
+      await loadCategoriesAndUnreads();
       await loadEmails(currentPage);
     };
 
@@ -253,8 +297,13 @@ const Index = () => {
   const filtered = useMemo(() => {
     const base = emails.filter((e) => {
       if (mailbox === "inbox") return e.labels.includes("inbox");
-      if (mailbox === "archived") return e.labels.includes("archived");
+      if (mailbox === "sent") return e.labels.includes("sent");
       if (mailbox === "starred") return e.starred;
+      if (mailbox === "archived") return !e.labels.includes("inbox") && !e.labels.includes("trash");
+      if (mailbox !== "inbox" && mailbox !== "sent" && mailbox !== "starred" && mailbox !== "archived") {
+        // Custom category
+        return e.labels.includes(mailbox.toLowerCase());
+      }
       return true;
     });
     if (!query.trim()) return base;
@@ -479,6 +528,11 @@ const Index = () => {
         {/* Sidebar */}
         <aside className="rounded-lg border bg-card">
           <nav className="p-2">
+            <div className="mb-3">
+              <div className="mb-1 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Mail ({totalUnreads} unread)
+              </div>
+            </div>
             <SidebarItem
               label="Inbox"
               active={mailbox === "inbox"}
@@ -486,17 +540,38 @@ const Index = () => {
               onClick={() => setMailbox("inbox")}
             />
             <SidebarItem
+              label="Sent"
+              active={mailbox === "sent"}
+              onClick={() => setMailbox("sent")}
+            />
+            <SidebarItem
               label="Starred"
               active={mailbox === "starred"}
-              count={emails.filter((e) => e.starred && e.labels.includes("inbox")).length}
+              count={emails.filter((e) => e.starred && e.unread).length}
               onClick={() => setMailbox("starred")}
             />
             <SidebarItem
               label="Archived"
               active={mailbox === "archived"}
-              count={emails.filter((e) => e.labels.includes("archived")).length}
               onClick={() => setMailbox("archived")}
             />
+            
+            {categories.length > 0 && (
+              <>
+                <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Categories
+                </div>
+                {categories.map((category) => (
+                  <SidebarItem
+                    key={category}
+                    label={category}
+                    active={mailbox === category}
+                    count={emails.filter((e) => e.labels.includes(category.toLowerCase()) && e.unread).length}
+                    onClick={() => setMailbox(category)}
+                  />
+                ))}
+              </>
+            )}
           </nav>
           <div className="px-3 pb-3">
             <div className="rounded-md border p-3 text-sm text-muted-foreground">
@@ -676,12 +751,20 @@ const Index = () => {
               Inbox
               <CommandShortcut>I</CommandShortcut>
             </CommandItem>
+            <CommandItem onSelect={() => setMailbox("sent")}>
+              Sent
+            </CommandItem>
             <CommandItem onSelect={() => setMailbox("starred")}>
               Starred
             </CommandItem>
             <CommandItem onSelect={() => setMailbox("archived")}>
               Archived
             </CommandItem>
+            {categories.map((category) => (
+              <CommandItem key={category} onSelect={() => setMailbox(category)}>
+                {category}
+              </CommandItem>
+            ))}
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Actions">
