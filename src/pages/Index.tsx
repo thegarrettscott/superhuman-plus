@@ -207,17 +207,19 @@ const Index = () => {
 
   // Auto-refresh emails every ~2 minutes when tab is visible and focused
   useEffect(() => {
+    console.log('Setting up auto-refresh interval');
     const REFRESH_MS = 2 * 60 * 1000;
     let cancelled = false;
 
     const tick = async () => {
       if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       if (cancelled) return;
+      console.log('Auto-refreshing emails...');
       try {
         // Pull in recent messages from Gmail (lightweight import)
         await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 50 } });
-      } catch (_e) {
-        // ignore
+      } catch (e) {
+        console.warn('Auto-import failed:', e);
       }
       await loadEmails(currentPage);
     };
@@ -237,12 +239,13 @@ const Index = () => {
     window.addEventListener('focus', onFocus);
 
     return () => {
+      console.log('Cleaning up auto-refresh interval');
       cancelled = true;
       clearInterval(interval);
       window.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
     };
-  }, [currentPage, mailbox, query]);
+  }, []); // Remove dependencies to prevent recreation on every change
 
   const filtered = useMemo(() => {
     const base = emails.filter((e) => {
