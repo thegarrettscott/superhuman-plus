@@ -535,17 +535,19 @@ const Index = () => {
                              <StarOff className="h-3 w-3 text-muted-foreground" />
                            )}
                          </button>
-                          <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
+                          <div className="flex min-w-0 flex-col flex-1 gap-1 overflow-hidden h-12 py-2">
                             <div className="flex items-center gap-2 min-w-0">
-                               <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
-                                 {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
-                               </p>
-                               {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
-                             </div>
-                             <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
-                               {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
-                             </p>
-                         </div>
+                              <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                                {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
+                              </p>
+                              <div className="w-2 h-2 shrink-0">
+                                {m.unread && <div className="w-2 h-2 bg-primary rounded-full" />}
+                              </div>
+                            </div>
+                            <p className="min-w-0 truncate text-xs text-muted-foreground leading-none">
+                              {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                            </p>
+                          </div>
                          <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                        </div>
                      </button>
@@ -645,14 +647,7 @@ const Index = () => {
                 <div className="space-y-2 p-4">
                   <div className="text-sm text-muted-foreground">From: {selected.from}</div>
                   {selected.bodyHtml ? (
-                    <div 
-                      className="prose prose-sm max-w-none [&_*]:!m-0 [&_*]:!p-0 [&_h1]:!text-lg [&_h2]:!text-base [&_h3]:!text-sm [&_p]:!leading-normal [&_div]:!block [&_span]:!inline [&_*]:!box-border"
-                      style={{
-                        contain: 'layout style',
-                        isolation: 'isolate'
-                      }}
-                      dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
-                    />
+                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selected.bodyHtml }} />
                   ) : (
                     <p className="leading-7 whitespace-pre-wrap">{selected.body}</p>
                   )}
