@@ -83,6 +83,7 @@ const Index = () => {
   const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
   const navigate = useNavigate();
   const [autoImported, setAutoImported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -269,6 +270,29 @@ const Index = () => {
     return mapped.length;
   }
 
+  const checkForGmailConnection = async () => {
+    // Check if user has already seen the connect dialog
+    const hasSeenConnectDialog = localStorage.getItem('velocitymail-connect-shown');
+    if (hasSeenConnectDialog) return;
+
+    // Check if user has any email accounts connected
+    const { data: accounts, error } = await supabase
+      .from('email_accounts')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      console.warn('Failed to check email accounts:', error);
+      return;
+    }
+
+    // If no accounts found, show the connect dialog
+    if (!accounts || accounts.length === 0) {
+      setShowConnectDialog(true);
+      localStorage.setItem('velocitymail-connect-shown', 'true');
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate('/auth');
@@ -278,6 +302,7 @@ const Index = () => {
       else {
         loadCategoriesAndUnreads();
         loadEmails(1);
+        checkForGmailConnection();
       }
     });
     return () => subscription.unsubscribe();
@@ -882,6 +907,55 @@ const Index = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      {/* Gmail Connection Dialog */}
+      <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Connect Your Gmail</DialogTitle>
+          </DialogHeader>
+          <div className="text-center space-y-4 py-4">
+            <Mail className="h-12 w-12 text-primary mx-auto" />
+            <p className="text-muted-foreground">
+              Welcome to Velocity Mail! To get started, connect your Gmail account to sync your emails.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              This will securely import your messages and allow you to manage your emails with our lightning-fast interface.
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowConnectDialog(false)}
+              className="w-full sm:w-auto"
+            >
+              Maybe later
+            </Button>
+            <Button 
+              onClick={async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                  toast({ title: "Login required", description: "Please log in to connect Gmail." });
+                  return;
+                }
+                const { data, error } = await supabase.functions.invoke("gmail-oauth", {
+                  body: { redirect_url: window.location.origin },
+                });
+                if (error || !data?.authUrl) {
+                  toast({ title: "Error", description: error?.message || "Could not start Google OAuth." });
+                  return;
+                }
+                setShowConnectDialog(false);
+                window.location.href = data.authUrl;
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              Connect Gmail
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
