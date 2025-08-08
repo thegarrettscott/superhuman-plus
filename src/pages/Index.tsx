@@ -151,7 +151,7 @@ const Index = () => {
     }));
 
     setEmails(mapped);
-    if (mapped.length > 0) setSelectedId(mapped[0].id);
+    if (mapped.length > 0 && !selectedId) setSelectedId(mapped[0].id);
 
     // Proactive bodies
     mapped.forEach(async (email) => {
