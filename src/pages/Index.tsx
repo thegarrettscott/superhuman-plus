@@ -537,7 +537,7 @@ const Index = () => {
                          </button>
                          <div className="flex min-w-0 flex-col flex-1 gap-0.5 overflow-hidden">
                            <div className="flex items-center gap-2 min-w-0">
-                              <p className={`flex-1 min-w-0 truncate text-sm leading-tight font-semibold ${m.unread ? "" : "font-normal"}`}>
+                              <p className={`flex-1 min-w-0 truncate text-sm leading-tight ${m.unread ? "font-semibold" : ""}`}>
                                 {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
                               </p>
                               {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
