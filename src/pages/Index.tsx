@@ -510,6 +510,33 @@ const Index = () => {
     setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, starred: willBeStarred } : e)));
   };
 
+  const markAsRead = async (email: Email) => {
+    if (!email.unread) return; // Already read, nothing to do
+    
+    // Update database
+    const { error } = await supabase
+      .from('email_messages')
+      .update({ is_read: true })
+      .eq('id', email.id);
+    
+    if (error) {
+      console.error('Failed to mark email as read:', error);
+      return;
+    }
+    
+    // Update local state
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, unread: false } : e)));
+    
+    // Also update the Gmail side to mark as read
+    const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'modify', id: email.gmailId, remove: ['UNREAD'] },
+    });
+    
+    if (gmailError) {
+      console.warn('Failed to mark email as read in Gmail:', gmailError);
+    }
+  };
+
   const handleImport = async (max = 100) => {
     toast({ title: 'Importing…', description: `Fetching latest ${max} emails.` });
     const { data, error } = await supabase.functions.invoke("gmail-actions", { body: { action: "import", max } });
@@ -654,7 +681,10 @@ const Index = () => {
                        className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors overflow-hidden ${
                          selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
                        }`}
-                       onClick={() => setSelectedId(m.id)}
+                       onClick={() => {
+                         setSelectedId(m.id);
+                         markAsRead(m);
+                       }}
                        aria-current={selected?.id === m.id}
                      >
                        <div className="flex items-center gap-2 h-full">
