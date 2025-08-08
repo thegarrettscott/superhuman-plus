@@ -148,12 +148,17 @@ const Index = () => {
       const userEmail = accountData?.[0]?.email_address;
       
       if (userEmail) {
+        // Filter by exact match of user's email address in from_address
         countQuery = countQuery.eq('from_address', userEmail);
         dataQuery = dataQuery.eq('from_address', userEmail);
+        
+        console.log(`Searching for sent emails from: ${userEmail}`);
       } else {
         // Fallback to SENT label if no user email found
         countQuery = countQuery.contains('label_ids', ['SENT']);
         dataQuery = dataQuery.contains('label_ids', ['SENT']);
+        
+        console.log('No user email found, searching for SENT label');
       }
     } else if (targetMailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
