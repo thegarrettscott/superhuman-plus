@@ -173,6 +173,203 @@ serve(async (req) => {
       return new Response(JSON.stringify({ imported: rows.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    if (action === "modify") {
+      // Modify labels on a Gmail message (e.g., mark read/unread, star/unstar)
+      const { id, add = [], remove = [] } = body as { id?: string; add?: string[]; remove?: string[] };
+      if (!id) {
+        return new Response(
+          JSON.stringify({ error: "Missing 'id' (gmail_message_id) for modify action" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Find gmail account
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (modify) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      // Call Gmail modify API
+      const modifyRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/modify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ addLabelIds: add, removeLabelIds: remove }),
+      });
+      if (!modifyRes.ok) {
+        const text = await modifyRes.text();
+        console.error("gmail-actions modify error:", text);
+        return new Response(JSON.stringify({ error: "Failed to modify Gmail message labels." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const updated = await modifyRes.json();
+      const labels: string[] = updated.labelIds || [];
+
+      // Update our DB mirror (best-effort)
+      await admin
+        .from("email_messages")
+        .update({
+          label_ids: labels,
+          is_read: !labels.includes("UNREAD"),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id)
+        .eq("gmail_message_id", id);
+
+      return new Response(
+        JSON.stringify({ modified: true, labels }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } else if (action === "send") {
+      // Send an email via Gmail API
+      const { to, cc = [], bcc = [], subject = "", text = "", html = "" } = body as {
+        to?: string[];
+        cc?: string[];
+        bcc?: string[];
+        subject?: string;
+        text?: string;
+        html?: string;
+      };
+
+      if (!to || !Array.isArray(to) || to.length === 0) {
+        return new Response(JSON.stringify({ error: "'to' must be a non-empty array" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find gmail account
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (send) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      // Build raw MIME message
+      function base64UrlEncode(str: string) {
+        return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      const headers: string[] = [];
+      if (to.length) headers.push(`To: ${to.join(', ')}`);
+      if (cc.length) headers.push(`Cc: ${cc.join(', ')}`);
+      if (bcc.length) headers.push(`Bcc: ${bcc.join(', ')}`);
+      headers.push(`Subject: ${subject}`);
+      const contentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
+      headers.push(`Content-Type: ${contentType}`);
+      const bodyContent = html || text || '';
+      const rawMessage = `${headers.join('\r\n')}\r\n\r\n${bodyContent}`;
+      const raw = base64UrlEncode(rawMessage);
+
+      const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ raw }),
+      });
+
+      if (!sendRes.ok) {
+        const errTxt = await sendRes.text();
+        console.error("gmail-actions send error:", errTxt);
+        // Log failure
+        await admin.from("outgoing_mail_logs").insert({
+          user_id: user.id,
+          account_id: account.id,
+          to_addresses: to,
+          cc_addresses: cc,
+          bcc_addresses: bcc,
+          subject,
+          body_text: html ? null : (text || ''),
+          body_html: html || null,
+          status: 'failed',
+          error_message: errTxt.substring(0, 500),
+        });
+        return new Response(JSON.stringify({ error: "Failed to send email." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const sent = await sendRes.json();
+      const gmail_message_id = sent.id as string | undefined;
+      await admin.from("outgoing_mail_logs").insert({
+        user_id: user.id,
+        account_id: account.id,
+        to_addresses: to,
+        cc_addresses: cc,
+        bcc_addresses: bcc,
+        subject,
+        body_text: html ? null : (text || ''),
+        body_html: html || null,
+        status: 'sent',
+        gmail_message_id: gmail_message_id || null,
+      });
+
+      return new Response(
+        JSON.stringify({ sent: true, id: gmail_message_id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("gmail-actions error:", e);

@@ -28,7 +28,8 @@ import { useNavigate } from "react-router-dom";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
-  id: string;
+  id: string; // local DB id (uuid)
+  gmailId: string; // Gmail message id
   from: string;
   subject: string;
   snippet: string;
@@ -66,9 +67,9 @@ const Index = () => {
   }, []);
 
   const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred">("inbox");
-const [emails, setEmails] = useState<Email[]>([]);
-const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
-const [query, setQuery] = useState("");
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
@@ -87,12 +88,13 @@ const [query, setQuery] = useState("");
     }
     const mapped: Email[] = ((data as any[]) || []).map((row: any) => ({
       id: row.id,
+      gmailId: row.gmail_message_id,
       from: row.from_address || '',
       subject: row.subject || '(no subject)',
       snippet: row.snippet || '',
       date: row.internal_date ? new Date(row.internal_date).toLocaleString() : '',
       unread: !row.is_read,
-      starred: false,
+      starred: Array.isArray(row.label_ids) && row.label_ids.includes('STARRED'),
       labels: ['inbox'],
       body: row.body_text || '',
     }));
@@ -225,8 +227,34 @@ const [query, setQuery] = useState("");
     toast({ title: "Archived", description: "Conversation moved to Archive." });
   };
 
-  const toggleStar = (id: string) =>
-    setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e)));
+  const toggleReadFor = async (email: Email) => {
+    const willBeUnread = !email.unread ? true : false; // toggle
+    // Modify Gmail labels: add/remove UNREAD
+    const add = willBeUnread ? ['UNREAD'] : [];
+    const remove = willBeUnread ? [] : ['UNREAD'];
+    const { error } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'modify', id: email.gmailId, add, remove },
+    });
+    if (error) {
+      toast({ title: 'Failed', description: error.message });
+      return;
+    }
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, unread: willBeUnread } : e)));
+  };
+
+  const toggleStar = async (email: Email) => {
+    const willBeStarred = !email.starred;
+    const add = willBeStarred ? ['STARRED'] : [];
+    const remove = willBeStarred ? [] : ['STARRED'];
+    const { error } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'modify', id: email.gmailId, add, remove },
+    });
+    if (error) {
+      toast({ title: 'Failed', description: error.message });
+      return;
+    }
+    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, starred: willBeStarred } : e)));
+  };
 
   const handleImport = async (max = 100) => {
     toast({ title: 'Importing…', description: `Fetching latest ${max} emails.` });
@@ -339,7 +367,7 @@ const [query, setQuery] = useState("");
                           aria-label={m.starred ? "Unstar" : "Star"}
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleStar(m.id);
+                            toggleStar(m);
                           }}
                         >
                           {m.starred ? (
@@ -372,6 +400,11 @@ const [query, setQuery] = useState("");
               <div className="flex items-center gap-2 border-b p-4">
                 <h2 className="text-base font-semibold leading-none tracking-tight">{selected.subject}</h2>
                 <div className="ml-auto flex items-center gap-2">
+                  <Button variant="secondary" onClick={async () => {
+                    if (selected) await toggleReadFor(selected);
+                  }}>
+                    {selected?.unread ? 'Mark as read' : 'Mark as unread'}
+                  </Button>
                   <Button variant="secondary" onClick={() => toast({ title: "Reply", description: "Reply opened (mock)", })}>
                     <Reply className="mr-2 h-4 w-4" /> Reply
                   </Button>
@@ -446,9 +479,36 @@ function SidebarItem({ label, count, active, onClick }: { label: string; count?:
 
 function ComposeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const toRef = useRef<HTMLInputElement>(null);
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
   useEffect(() => {
     if (open) setTimeout(() => toRef.current?.focus(), 50);
   }, [open]);
+
+  const handleSend = async () => {
+    const toList = to.split(',').map((s) => s.trim()).filter(Boolean);
+    if (toList.length === 0) {
+      toast({ title: 'Add recipient', description: 'Please add at least one email address.' });
+      return;
+    }
+    setSending(true);
+    const { data, error } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'send', to: toList, subject, text: body },
+    });
+    setSending(false);
+    if (error) {
+      toast({ title: 'Send failed', description: error.message });
+      return;
+    }
+    toast({ title: 'Sent', description: 'Message delivered.' });
+    onOpenChange(false);
+    setTo("");
+    setSubject("");
+    setBody("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -460,21 +520,23 @@ function ComposeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
           <DialogTitle>New message</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <Input ref={toRef} placeholder="To" aria-label="To" />
-          <Input placeholder="Subject" aria-label="Subject" />
+          <Input ref={toRef} placeholder="To" aria-label="To" value={to} onChange={(e) => setTo(e.target.value)} />
+          <Input placeholder="Subject" aria-label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
           <div>
             <textarea
               aria-label="Message body"
               className="min-h-[160px] w-full rounded-md border bg-background p-3 outline-none"
               placeholder="Say hello…"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={() => { onOpenChange(false); toast({ title: "Sent", description: "Message sent (mock)", }); }}>
-            <Send className="mr-2 h-4 w-4" /> Send
+          <Button onClick={handleSend} disabled={sending}>
+            <Send className="mr-2 h-4 w-4" /> {sending ? 'Sending…' : 'Send'}
           </Button>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={sending}>
             <X className="mr-2 h-4 w-4" /> Discard
           </Button>
         </DialogFooter>
