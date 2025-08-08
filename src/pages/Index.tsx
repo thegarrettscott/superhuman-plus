@@ -205,6 +205,45 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-refresh emails every ~2 minutes when tab is visible and focused
+  useEffect(() => {
+    const REFRESH_MS = 2 * 60 * 1000;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      if (cancelled) return;
+      try {
+        // Pull in recent messages from Gmail (lightweight import)
+        await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 50 } });
+      } catch (_e) {
+        // ignore
+      }
+      await loadEmails(currentPage);
+    };
+
+    const interval = window.setInterval(() => {
+      if (!isTypingInInput(document.activeElement)) {
+        void tick();
+      }
+    }, REFRESH_MS);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void tick();
+    };
+    const onFocus = () => void tick();
+
+    window.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [currentPage, mailbox, query]);
+
   const filtered = useMemo(() => {
     const base = emails.filter((e) => {
       if (mailbox === "inbox") return e.labels.includes("inbox");
