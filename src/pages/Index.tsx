@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -60,6 +61,7 @@ const Index = () => {
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [autoImported, setAutoImported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImportingSent, setIsImportingSent] = useState(false);
@@ -78,6 +80,7 @@ const Index = () => {
     const {
       data: labelData
     } = await supabase.from('email_messages').select('label_ids').not('label_ids', 'is', null);
+    const categories: string[] = [];
     if (labelData) {
       const allLabels = new Set<string>();
       labelData.forEach((row: any) => {
@@ -90,7 +93,7 @@ const Index = () => {
           });
         }
       });
-      setCategories(Array.from(allLabels).sort());
+      categories.push(...Array.from(allLabels).sort());
     }
 
     // Load total unread count across all emails
@@ -100,9 +103,26 @@ const Index = () => {
       count: 'exact',
       head: true
     }).eq('is_read', false).not('label_ids', 'cs', ['TRASH']);
-    if (count !== null) setTotalUnreads(count);
+    const totalUnreads = count || 0;
+    
+    return { categories, totalUnreads };
   }
-  async function loadEmails(page = 1, targetMailbox = mailbox): Promise<number> {
+  // Cache email lists using React Query
+  const { data: emailData, isLoading: emailsLoading, refetch: refetchEmails } = useQuery({
+    queryKey: ['emails', mailbox, query, currentPage],
+    queryFn: () => loadEmailsWithCache(currentPage, mailbox),
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 300000, // Keep in cache for 5 minutes
+  });
+
+  // Cache categories and unreads
+  const { data: categoriesData, refetch: refetchCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: loadCategoriesAndUnreads,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  async function loadEmailsWithCache(page = 1, targetMailbox = mailbox): Promise<{ emails: Email[], total: number }> {
     const offset = (page - 1) * PAGE_SIZE;
 
     // Build base filter by mailbox and search
@@ -188,14 +208,15 @@ const Index = () => {
     const {
       count
     } = await countQuery;
-    if (count !== null) setTotalEmails(count);
+    const total = count || 0;
+    
     const {
       data,
       error
     } = await dataQuery.range(offset, offset + PAGE_SIZE - 1);
     if (error) {
       console.error('loadEmails error', error);
-      return 0;
+      throw error;
     }
     const mapped: Email[] = (data as any[] || []).map((row: any) => ({
       id: row.id,
@@ -210,11 +231,6 @@ const Index = () => {
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined
     }));
-    setEmails(mapped);
-    // Only select first email if no email is currently selected
-    if (mapped.length > 0 && !selectedId) {
-      setSelectedId(mapped[0].id);
-    }
 
     // Proactive bodies
     mapped.forEach(async email => {
@@ -246,7 +262,7 @@ const Index = () => {
       } = await supabase.from('email_accounts').select('id').limit(1);
       if (accErr) {
         console.warn('email_accounts check error', accErr);
-        return 0;
+        throw accErr;
       }
       if (accRows && accRows.length > 0) {
         toast({
@@ -267,17 +283,40 @@ const Index = () => {
             title: 'Import failed',
             description: impError.message
           });
+          throw impError;
         } else {
           toast({
             title: 'Imported',
             description: `${impData?.imported ?? 0} messages imported.`
           });
-          return await loadEmails(1);
+          // Recursively reload after import
+          return await loadEmailsWithCache(1, targetMailbox);
         }
       }
     }
-    return mapped.length;
+    
+    return { emails: mapped, total };
   }
+  // Update emails when emailData changes
+  useEffect(() => {
+    if (emailData) {
+      setEmails(emailData.emails);
+      setTotalEmails(emailData.total);
+      // Select first email if none selected
+      if (emailData.emails.length > 0 && !selectedId) {
+        setSelectedId(emailData.emails[0].id);
+      }
+    }
+  }, [emailData, selectedId]);
+
+  // Update categories when data changes
+  useEffect(() => {
+    if (categoriesData) {
+      setCategories(categoriesData.categories);
+      setTotalUnreads(categoriesData.totalUnreads);
+    }
+  }, [categoriesData]);
+
   useEffect(() => {
     const {
       data: {
@@ -291,10 +330,7 @@ const Index = () => {
         session
       }
     }) => {
-      if (!session) navigate('/auth');else {
-        loadCategoriesAndUnreads();
-        loadEmails(1);
-      }
+      if (!session) navigate('/auth');
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,11 +353,12 @@ const Index = () => {
             max: 50
           }
         });
+        // Invalidate cache to trigger refresh
+        queryClient.invalidateQueries({ queryKey: ['emails'] });
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
       } catch (e) {
         console.warn('Auto-import failed:', e);
       }
-      await loadCategoriesAndUnreads();
-      await loadEmails(currentPage);
     };
     const interval = window.setInterval(() => {
       if (!isTypingInInput(document.activeElement)) {
@@ -341,7 +378,7 @@ const Index = () => {
       window.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
     };
-  }, []); // Remove dependencies to prevent recreation on every change
+  }, [queryClient]);
 
   const filtered = useMemo(() => {
     // Get user's email for sent filtering
@@ -464,11 +501,11 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, selectedId]);
   const refillAfterChange = async () => {
-    const len = await loadEmails(currentPage);
-    if (len === 0 && currentPage > 1) {
+    // Invalidate and refetch current data
+    await refetchEmails();
+    if (emailData && emailData.emails.length === 0 && currentPage > 1) {
       const newPage = currentPage - 1;
       setCurrentPage(newPage);
-      await loadEmails(newPage);
     }
   };
   const archiveSelected = async () => {
@@ -640,14 +677,15 @@ const Index = () => {
       title: "Imported",
       description: `${data?.imported ?? 0} messages imported.`
     });
-    await loadEmails(1);
+    // Invalidate cache to refresh
+    queryClient.invalidateQueries({ queryKey: ['emails'] });
     setCurrentPage(1);
   };
   const switchMailbox = async (newMailbox: string) => {
     setMailbox(newMailbox);
     setCurrentPage(1);
     setSelectedId(undefined);
-    await loadEmails(1, newMailbox);
+    // Cache will auto-update when mailbox changes
   };
   return <div className="min-h-screen bg-background">
       <header onMouseMove={onPointerMove} className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -786,7 +824,7 @@ const Index = () => {
                   if (currentPage > 1) {
                     const newPage = currentPage - 1;
                     setCurrentPage(newPage);
-                    loadEmails(newPage);
+                    // Page change will trigger cache update
                   }
                 }} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                   </PaginationItem>
@@ -798,7 +836,7 @@ const Index = () => {
                 return <PaginationItem key={page}>
                         <PaginationLink onClick={() => {
                     setCurrentPage(page);
-                    loadEmails(page);
+                    // Page change will trigger cache update
                   }} isActive={currentPage === page} className="cursor-pointer">
                           {page}
                         </PaginationLink>
@@ -814,7 +852,7 @@ const Index = () => {
                   if (currentPage < Math.ceil(totalEmails / PAGE_SIZE)) {
                     const newPage = currentPage + 1;
                     setCurrentPage(newPage);
-                    loadEmails(newPage);
+                    // Page change will trigger cache update
                   }
                 }} className={currentPage >= Math.ceil(totalEmails / PAGE_SIZE) ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                   </PaginationItem>
