@@ -2,6 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -76,14 +85,25 @@ const Index = () => {
   const navigate = useNavigate();
   const [autoImported, setAutoImported] = useState(false);
   const [replyDraft, setReplyDraft] = useState<{ to?: string; subject?: string; body?: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmails, setTotalEmails] = useState(0);
+  const PAGE_SIZE = 50;
 
 
-  async function loadEmails() {
+  async function loadEmails(page = 1) {
+    const offset = (page - 1) * PAGE_SIZE;
+    
+    // Get total count
+    const { count } = await supabase
+      .from('email_messages')
+      .select('*', { count: 'exact', head: true });
+    if (count !== null) setTotalEmails(count);
+    
     const { data, error } = await supabase
       .from('email_messages')
       .select('*')
       .order('internal_date', { ascending: false })
-      .limit(100);
+      .range(offset, offset + PAGE_SIZE - 1);
     if (error) {
       console.error('loadEmails error', error);
       return;
@@ -101,10 +121,25 @@ const Index = () => {
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined,
     }));
+    // Load bodies proactively for all emails
     if (mapped.length) {
       setEmails(mapped);
       setSelectedId(mapped[0].id);
-    } else if (!autoImported) {
+      
+      // Load bodies in background for all emails
+      mapped.forEach(async (email) => {
+        if (!email.body) {
+          const { data } = await supabase.functions.invoke('gmail-actions', {
+            body: { action: 'get', id: email.gmailId },
+          });
+          if (data) {
+            setEmails((prev) => prev.map((e) => (
+              e.id === email.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
+            )));
+          }
+        }
+      });
+    } else if (!autoImported && page === 1) {
       setAutoImported(true);
       // If a Gmail account is connected, auto-import up to 100 messages
       const { data: accRows, error: accErr } = await supabase
@@ -122,7 +157,7 @@ const Index = () => {
           toast({ title: 'Import failed', description: impError.message });
         } else {
           toast({ title: 'Imported', description: `${impData?.imported ?? 0} messages imported.` });
-          await loadEmails();
+          await loadEmails(1);
         }
       }
     }
@@ -134,7 +169,7 @@ const Index = () => {
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate('/auth');
-      else loadEmails();
+      else loadEmails(1);
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,7 +314,8 @@ const Index = () => {
       return;
     }
     toast({ title: "Imported", description: `${data?.imported ?? 0} messages imported.` });
-    await loadEmails();
+    await loadEmails(1);
+    setCurrentPage(1);
   };
 
   return (
@@ -321,7 +357,6 @@ const Index = () => {
                 }
                 window.location.href = data.authUrl;
               }}>Connect Gmail</Button>
-              <Button variant="outline" onClick={() => handleImport(100)}>Import Emails</Button>
               <Button onClick={() => setComposeOpen(true)}>Compose</Button>
             </div>
           </div>
@@ -370,15 +405,15 @@ const Index = () => {
                 {filtered.map((m) => (
                   <li key={m.id}>
                     <button
-                      className={`w-full text-left px-4 py-3 focus:outline-none transition-colors ${
+                      className={`w-full text-left px-3 py-2 focus:outline-none transition-colors ${
                         selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
                       }`}
                       onClick={() => setSelectedId(m.id)}
                       aria-current={selected?.id === m.id}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <button
-                          className="shrink-0 rounded-md border px-2 py-1 text-xs"
+                          className="shrink-0 text-xs p-1"
                           aria-label={m.starred ? "Unstar" : "Star"}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -386,19 +421,19 @@ const Index = () => {
                           }}
                         >
                           {m.starred ? (
-                            <span className="inline-flex items-center gap-1 text-primary"><Star className="h-3.5 w-3.5" /> Starred</span>
+                            <Star className="h-3 w-3 text-primary fill-primary" />
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-muted-foreground"><StarOff className="h-3.5 w-3.5" /> Star</span>
+                            <StarOff className="h-3 w-3 text-muted-foreground" />
                           )}
                         </button>
-                        <div className="flex min-w-0 flex-col">
+                        <div className="flex min-w-0 flex-col flex-1 gap-0.5">
                           <div className="flex items-center gap-2">
-                            <p className={`truncate ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
-                            {m.unread && <Badge>New</Badge>}
+                            <p className={`truncate text-sm ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
+                            {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
                           </div>
-                          <p className="truncate text-sm text-muted-foreground">{m.from} — {m.snippet}</p>
+                          <p className="truncate text-xs text-muted-foreground">{m.from} — {m.snippet}</p>
                         </div>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{m.date}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                       </div>
                     </button>
                   </li>
@@ -406,6 +441,63 @@ const Index = () => {
               </ul>
             )}
           </ScrollArea>
+          {totalEmails > PAGE_SIZE && (
+            <div className="border-t p-3">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => {
+                        if (currentPage > 1) {
+                          const newPage = currentPage - 1;
+                          setCurrentPage(newPage);
+                          loadEmails(newPage);
+                        }
+                      }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  
+                  {Array.from({ length: Math.min(5, Math.ceil(totalEmails / PAGE_SIZE)) }, (_, i) => {
+                    const page = i + 1;
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => {
+                            setCurrentPage(page);
+                            loadEmails(page);
+                          }}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  {Math.ceil(totalEmails / PAGE_SIZE) > 5 && (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  )}
+                  
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => {
+                        if (currentPage < Math.ceil(totalEmails / PAGE_SIZE)) {
+                          const newPage = currentPage + 1;
+                          setCurrentPage(newPage);
+                          loadEmails(newPage);
+                        }
+                      }}
+                      className={currentPage >= Math.ceil(totalEmails / PAGE_SIZE) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </section>
 
         {/* Detail */}
