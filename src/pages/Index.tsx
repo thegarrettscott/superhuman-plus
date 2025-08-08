@@ -39,80 +39,8 @@ type Email = {
   body: string;
 };
 
-const MOCK_EMAILS: Email[] = [
-  {
-    id: "1",
-    from: "Ada Lovelace <ada@compute.org>",
-    subject: "Demo flight plan for Velocity",
-    snippet: "Here’s the streamlined triage flow and keyboard map…",
-    date: "10:21",
-    unread: true,
-    starred: true,
-    labels: ["inbox"],
-    body:
-      "I drafted a lean keyboard-first triage flow for Velocity. Let’s iterate quickly—think focus mode, batch triage, and ultra-fast search.",
-  },
-  {
-    id: "2",
-    from: "Linus Torvalds <linus@kernel.org>",
-    subject: "Latency numbers look great",
-    snippet: "Your last change shaved ~30ms off keypress to action…",
-    date: "09:03",
-    unread: true,
-    starred: false,
-    labels: ["inbox"],
-    body:
-      "Noticed your command palette latency dropped. Keep input debouncing minimal; prioritize responsiveness over completeness.",
-  },
-  {
-    id: "3",
-    from: "Grace Hopper <grace@navy.mil>",
-    subject: "Schedule the ship-it review",
-    snippet: "Let’s review usability, motion, and dark surfaces…",
-    date: "Yesterday",
-    unread: false,
-    starred: false,
-    labels: ["inbox"],
-    body:
-      "Please schedule the final ship-it review. Focus on clarity, accessible motion, and visible focus states.",
-  },
-  {
-    id: "4",
-    from: "Feynman <richard@caltech.edu>",
-    subject: "Chaos is interesting (but not here)",
-    snippet: "Keep the interface simple—one clear action per moment…",
-    date: "Yesterday",
-    unread: false,
-    starred: true,
-    labels: ["inbox"],
-    body:
-      "Simplicity wins. Guide attention. One confident accent, clean rhythm, fast flow.",
-  },
-  {
-    id: "5",
-    from: "S. Jobs <sj@apple.com>",
-    subject: "Details make the experience",
-    snippet: "Polish the micro-interactions and you have it…",
-    date: "Mon",
-    unread: false,
-    starred: false,
-    labels: ["inbox"],
-    body:
-      "Great work. Refine the hover/focus micro-interactions. The rest follows.",
-  },
-  {
-    id: "6",
-    from: "Support <team@velocity.mail>",
-    subject: "Welcome to Velocity Mail",
-    snippet: "Use C to compose, E to archive, J/K to navigate…",
-    date: "Mon",
-    unread: false,
-    starred: false,
-    labels: ["inbox"],
-    body:
-      "Keyboard map: C compose, E archive, R reply, J/K navigate, Cmd/Ctrl+K open command palette.",
-  },
-];
+// Demo data removed; start with an empty inbox that populates from Supabase.
+
 
 const isTypingInInput = (el: EventTarget | null) => {
   if (!(el instanceof HTMLElement)) return false;
@@ -138,9 +66,9 @@ const Index = () => {
   }, []);
 
   const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred">("inbox");
-  const [emails, setEmails] = useState<Email[]>(MOCK_EMAILS);
-  const [selectedId, setSelectedId] = useState<string>(MOCK_EMAILS[0].id);
-  const [query, setQuery] = useState("");
+const [emails, setEmails] = useState<Email[]>([]);
+const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
@@ -366,44 +294,50 @@ const Index = () => {
         {/* List */}
         <section className="rounded-lg border bg-card overflow-hidden">
           <ScrollArea className="h-[calc(100vh-9.5rem)]">
-            <ul className="divide-y">
-              {filtered.map((m) => (
-                <li key={m.id}>
-                  <button
-                    className={`w-full text-left px-4 py-3 focus:outline-none transition-colors ${
-                      selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
-                    }`}
-                    onClick={() => setSelectedId(m.id)}
-                    aria-current={selected?.id === m.id}
-                  >
-                    <div className="flex items-center gap-3">
-                      <button
-                        className="shrink-0 rounded-md border px-2 py-1 text-xs"
-                        aria-label={m.starred ? "Unstar" : "Star"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleStar(m.id);
-                        }}
-                      >
-                        {m.starred ? (
-                          <span className="inline-flex items-center gap-1 text-primary"><Star className="h-3.5 w-3.5" /> Starred</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-muted-foreground"><StarOff className="h-3.5 w-3.5" /> Star</span>
-                        )}
-                      </button>
-                      <div className="flex min-w-0 flex-col">
-                        <div className="flex items-center gap-2">
-                          <p className={`truncate ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
-                          {m.unread && <Badge>New</Badge>}
+            {filtered.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground">
+                No messages yet. Click "Connect Gmail" to load your inbox.
+              </div>
+            ) : (
+              <ul className="divide-y">
+                {filtered.map((m) => (
+                  <li key={m.id}>
+                    <button
+                      className={`w-full text-left px-4 py-3 focus:outline-none transition-colors ${
+                        selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
+                      }`}
+                      onClick={() => setSelectedId(m.id)}
+                      aria-current={selected?.id === m.id}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          className="shrink-0 rounded-md border px-2 py-1 text-xs"
+                          aria-label={m.starred ? "Unstar" : "Star"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleStar(m.id);
+                          }}
+                        >
+                          {m.starred ? (
+                            <span className="inline-flex items-center gap-1 text-primary"><Star className="h-3.5 w-3.5" /> Starred</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground"><StarOff className="h-3.5 w-3.5" /> Star</span>
+                          )}
+                        </button>
+                        <div className="flex min-w-0 flex-col">
+                          <div className="flex items-center gap-2">
+                            <p className={`truncate ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
+                            {m.unread && <Badge>New</Badge>}
+                          </div>
+                          <p className="truncate text-sm text-muted-foreground">{m.from} — {m.snippet}</p>
                         </div>
-                        <p className="truncate text-sm text-muted-foreground">{m.from} — {m.snippet}</p>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{m.date}</span>
                       </div>
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">{m.date}</span>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </ScrollArea>
         </section>
 
