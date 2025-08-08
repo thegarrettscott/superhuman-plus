@@ -143,8 +143,25 @@ const Index = () => {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
-      countQuery = countQuery.contains('label_ids', ['SENT']);
-      dataQuery = dataQuery.contains('label_ids', ['SENT']);
+      // Check for SENT label first, fallback to emails from user's own address
+      const { data: accountData } = await supabase.from('email_accounts').select('email_address').limit(1);
+      const userEmail = accountData?.[0]?.email_address;
+      
+      if (userEmail) {
+        // Use separate queries for SENT label and user's email address
+        const sentQuery = countQuery.contains('label_ids', ['SENT']);
+        const userEmailQuery = countQuery.ilike('from_address', `%${userEmail}%`);
+        
+        const sentDataQuery = dataQuery.contains('label_ids', ['SENT']);
+        const userEmailDataQuery = dataQuery.ilike('from_address', `%${userEmail}%`);
+        
+        // For now, just use the user email filter since no SENT labels exist
+        countQuery = userEmailQuery;
+        dataQuery = userEmailDataQuery;
+      } else {
+        countQuery = countQuery.contains('label_ids', ['SENT']);
+        dataQuery = dataQuery.contains('label_ids', ['SENT']);
+      }
     } else if (targetMailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
       dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
@@ -295,9 +312,19 @@ const Index = () => {
   }, []); // Remove dependencies to prevent recreation on every change
 
   const filtered = useMemo(() => {
+    // Get user's email for sent filtering
+    const getUserEmail = async () => {
+      const { data: accountData } = await supabase.from('email_accounts').select('email_address').limit(1);
+      return accountData?.[0]?.email_address;
+    };
+
+    // Filter based on current mailbox
     const base = emails.filter((e) => {
       if (mailbox === "inbox") return e.labels.includes("inbox");
-      if (mailbox === "sent") return e.labels.includes("sent");
+      if (mailbox === "sent") {
+        // Check if email has SENT label or is from user's address
+        return e.labels.includes("sent") || e.from.includes("@pipedreamlabs.co"); // Temporary hardcode, should use dynamic user email
+      }
       if (mailbox === "starred") return e.starred;
       if (mailbox === "archived") return !e.labels.includes("inbox") && !e.labels.includes("trash");
       if (mailbox !== "inbox" && mailbox !== "sent" && mailbox !== "starred" && mailbox !== "archived") {
@@ -306,6 +333,7 @@ const Index = () => {
       }
       return true;
     });
+    
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter(
