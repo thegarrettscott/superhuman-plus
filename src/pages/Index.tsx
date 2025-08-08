@@ -513,13 +513,13 @@ const Index = () => {
               <div className="divide-y">
                 {filtered.map((m) => (
                   <div key={m.id}>
-                    <button
-                      className={`w-full text-left px-3 py-1.5 focus:outline-none transition-colors ${
-                        selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
-                      }`}
-                      onClick={() => setSelectedId(m.id)}
-                      aria-current={selected?.id === m.id}
-                    >
+                     <button
+                       className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors ${
+                         selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
+                       }`}
+                       onClick={() => setSelectedId(m.id)}
+                       aria-current={selected?.id === m.id}
+                     >
                       <div className="flex items-center gap-2">
                         <button
                           className="shrink-0 text-xs p-1"
