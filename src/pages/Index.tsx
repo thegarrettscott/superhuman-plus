@@ -119,7 +119,7 @@ const Index = () => {
       date: row.internal_date ? new Date(row.internal_date).toLocaleString() : '',
       unread: !row.is_read,
       starred: Array.isArray(row.label_ids) && row.label_ids.includes('STARRED'),
-      labels: ['inbox'],
+      labels: Array.isArray(row.label_ids) && row.label_ids.includes('INBOX') ? ['inbox'] : ['archived'],
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined,
     }));
@@ -269,17 +269,23 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, selectedId]);
 
-  const archiveSelected = () => {
+  const archiveSelected = async () => {
     if (!selected) return;
+    const { error } = await supabase.functions.invoke('gmail-actions', {
+      body: { action: 'modify', id: selected.gmailId, add: [], remove: ['INBOX'] },
+    });
+    if (error) {
+      toast({ title: 'Failed to archive', description: error.message });
+      return;
+    }
     setEmails((prev) =>
       prev.map((e) =>
         e.id === selected.id
-          ? { ...e, labels: ["archived"], unread: false }
+          ? { ...e, labels: ['archived'], unread: false }
           : e
       )
     );
-    setMailbox("inbox");
-    toast({ title: "Archived", description: "Conversation moved to Archive." });
+    toast({ title: 'Archived', description: 'Conversation moved to Archive.' });
   };
 
   const toggleReadFor = async (email: Email) => {
