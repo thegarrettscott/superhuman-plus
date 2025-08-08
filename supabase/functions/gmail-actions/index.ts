@@ -405,8 +405,6 @@ serve(async (req) => {
         JSON.stringify({ sent: true, id: gmail_message_id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
     } else if (action === "get") {
       const { id } = body as { id?: string };
       if (!id) {
