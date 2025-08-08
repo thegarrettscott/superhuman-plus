@@ -1,33 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-  CommandShortcut,
-} from "@/components/ui/command";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { EmailContent } from "@/components/EmailContent";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -53,55 +29,55 @@ type Email = {
 
 // Demo data removed; start with an empty inbox that populates from Supabase.
 
-
 const isTypingInInput = (el: EventTarget | null) => {
   if (!(el instanceof HTMLElement)) return false;
   const tag = el.tagName.toLowerCase();
   return tag === "input" || tag === "textarea" || el.isContentEditable;
 };
-
 const Index = () => {
   // SEO basics
   useEffect(() => {
-    document.title = "Freeform Email — Superhuman-style Gmail";
+    document.title = "Velocity Mail — Superhuman-style Gmail";
     const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute("content", "A Freeform Email client: keyboard-first, fast triage, elegant UI.");
+    if (meta) meta.setAttribute("content", "A Superhuman-style Gmail client: keyboard-first, fast triage, elegant UI.");
 
     // Connection feedback
     const params = new URLSearchParams(window.location.search);
     if (params.get("gmail") === "connected") {
-      toast({ title: "Gmail connected", description: "Your Google account is linked." });
+      toast({
+        title: "Gmail connected",
+        description: "Your Google account is linked."
+      });
       params.delete("gmail");
       const url = `${window.location.pathname}?${params.toString()}`.replace(/\?$/, "");
       window.history.replaceState({}, "", url);
     }
   }, []);
-
   const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred" | "sent" | string>("inbox");
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
-  const [showConnectDialog, setShowConnectDialog] = useState(false);
   const navigate = useNavigate();
   const [autoImported, setAutoImported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImportingSent, setIsImportingSent] = useState(false);
-  const [replyDraft, setReplyDraft] = useState<{ to?: string; subject?: string; body?: string } | null>(null);
+  const [replyDraft, setReplyDraft] = useState<{
+    to?: string;
+    subject?: string;
+    body?: string;
+  } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmails, setTotalEmails] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [totalUnreads, setTotalUnreads] = useState(0);
   const PAGE_SIZE = 50;
-
   async function loadCategoriesAndUnreads() {
     // Load all unique categories/labels from user's emails
-    const { data: labelData } = await supabase
-      .from('email_messages')
-      .select('label_ids')
-      .not('label_ids', 'is', null);
-    
+    const {
+      data: labelData
+    } = await supabase.from('email_messages').select('label_ids').not('label_ids', 'is', null);
     if (labelData) {
       const allLabels = new Set<string>();
       labelData.forEach((row: any) => {
@@ -118,26 +94,25 @@ const Index = () => {
     }
 
     // Load total unread count across all emails
-    const { count } = await supabase
-      .from('email_messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_read', false)
-      .not('label_ids', 'cs', ['TRASH']);
-    
+    const {
+      count
+    } = await supabase.from('email_messages').select('*', {
+      count: 'exact',
+      head: true
+    }).eq('is_read', false).not('label_ids', 'cs', ['TRASH']);
     if (count !== null) setTotalUnreads(count);
   }
-
   async function loadEmails(page = 1, targetMailbox = mailbox): Promise<number> {
     const offset = (page - 1) * PAGE_SIZE;
 
     // Build base filter by mailbox and search
-    let countQuery = supabase
-      .from('email_messages')
-      .select('*', { count: 'exact', head: true });
-    let dataQuery = supabase
-      .from('email_messages')
-      .select('*')
-      .order('internal_date', { ascending: false });
+    let countQuery = supabase.from('email_messages').select('*', {
+      count: 'exact',
+      head: true
+    });
+    let dataQuery = supabase.from('email_messages').select('*').order('internal_date', {
+      ascending: false
+    });
 
     // Mailbox filters
     if (targetMailbox === 'inbox') {
@@ -148,34 +123,49 @@ const Index = () => {
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
       // Check if we have any sent emails first
-      const { count: sentCount } = await supabase
-        .from('email_messages')
-        .select('*', { count: 'exact', head: true })
-        .contains('label_ids', ['SENT']);
-      
+      const {
+        count: sentCount
+      } = await supabase.from('email_messages').select('*', {
+        count: 'exact',
+        head: true
+      }).contains('label_ids', ['SENT']);
+
       // If no sent emails cached, import them first
       if (sentCount === 0) {
         setIsImportingSent(true);
         try {
           console.log('Importing sent emails from Gmail...');
-          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
-            body: { action: 'import', mailbox: 'sent', max: 50 }
+          const {
+            error: importError
+          } = await supabase.functions.invoke('gmail-actions', {
+            body: {
+              action: 'import',
+              mailbox: 'sent',
+              max: 50
+            }
           });
           if (importError) {
             console.error('Failed to import sent emails:', importError);
-            toast({ title: 'Failed to import sent emails', description: importError.message });
+            toast({
+              title: 'Failed to import sent emails',
+              description: importError.message
+            });
           } else {
             console.log('Successfully imported sent emails from Gmail');
-            toast({ title: 'Sent emails imported successfully' });
+            toast({
+              title: 'Sent emails imported successfully'
+            });
           }
         } catch (err) {
           console.error('Error importing sent emails:', err);
-          toast({ title: 'Error importing sent emails' });
+          toast({
+            title: 'Error importing sent emails'
+          });
         } finally {
           setIsImportingSent(false);
         }
       }
-      
+
       // Filter by SENT label
       countQuery = countQuery.contains('label_ids', ['SENT']);
       dataQuery = dataQuery.contains('label_ids', ['SENT']);
@@ -192,25 +182,22 @@ const Index = () => {
     const q = query.trim();
     if (q) {
       const like = `%${q}%`;
-      countQuery = countQuery.or(
-        `subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`
-      );
-      dataQuery = dataQuery.or(
-        `subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`
-      );
+      countQuery = countQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`);
+      dataQuery = dataQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`);
     }
-
-    const { count } = await countQuery;
+    const {
+      count
+    } = await countQuery;
     if (count !== null) setTotalEmails(count);
-
-    const { data, error } = await dataQuery.range(offset, offset + PAGE_SIZE - 1);
-
+    const {
+      data,
+      error
+    } = await dataQuery.range(offset, offset + PAGE_SIZE - 1);
     if (error) {
       console.error('loadEmails error', error);
       return 0;
     }
-
-    const mapped: Email[] = ((data as any[]) || []).map((row: any) => ({
+    const mapped: Email[] = (data as any[] || []).map((row: any) => ({
       id: row.id,
       gmailId: row.gmail_message_id,
       from: row.from_address || '',
@@ -221,9 +208,8 @@ const Index = () => {
       starred: Array.isArray(row.label_ids) && row.label_ids.includes('STARRED'),
       labels: Array.isArray(row.label_ids) ? row.label_ids.map((label: string) => label.toLowerCase()) : [],
       body: row.body_text || '',
-      bodyHtml: row.body_html || undefined,
+      bodyHtml: row.body_html || undefined
     }));
-
     setEmails(mapped);
     // Only select first email if no email is currently selected
     if (mapped.length > 0 && !selectedId) {
@@ -231,15 +217,22 @@ const Index = () => {
     }
 
     // Proactive bodies
-    mapped.forEach(async (email) => {
+    mapped.forEach(async email => {
       if (!email.body) {
-        const { data } = await supabase.functions.invoke('gmail-actions', {
-          body: { action: 'get', id: email.gmailId },
+        const {
+          data
+        } = await supabase.functions.invoke('gmail-actions', {
+          body: {
+            action: 'get',
+            id: email.gmailId
+          }
         });
         if (data) {
-          setEmails((prev) => prev.map((e) => (
-            e.id === email.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
-          )));
+          setEmails(prev => prev.map(e => e.id === email.id ? {
+            ...e,
+            body: data.body_text || e.body,
+            bodyHtml: data.body_html || e.bodyHtml
+          } : e));
         }
       }
     });
@@ -247,62 +240,60 @@ const Index = () => {
     // Auto-import only on first page if empty
     if (mapped.length === 0 && !autoImported && page === 1) {
       setAutoImported(true);
-      const { data: accRows, error: accErr } = await supabase
-        .from('email_accounts')
-        .select('id')
-        .limit(1);
+      const {
+        data: accRows,
+        error: accErr
+      } = await supabase.from('email_accounts').select('id').limit(1);
       if (accErr) {
         console.warn('email_accounts check error', accErr);
         return 0;
       }
       if (accRows && accRows.length > 0) {
-        toast({ title: 'Importing…', description: 'Fetching your latest emails.' });
-        const { data: impData, error: impError } = await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 100 } });
+        toast({
+          title: 'Importing…',
+          description: 'Fetching your latest emails.'
+        });
+        const {
+          data: impData,
+          error: impError
+        } = await supabase.functions.invoke('gmail-actions', {
+          body: {
+            action: 'import',
+            max: 100
+          }
+        });
         if (impError) {
-          toast({ title: 'Import failed', description: impError.message });
+          toast({
+            title: 'Import failed',
+            description: impError.message
+          });
         } else {
-          toast({ title: 'Imported', description: `${impData?.imported ?? 0} messages imported.` });
+          toast({
+            title: 'Imported',
+            description: `${impData?.imported ?? 0} messages imported.`
+          });
           return await loadEmails(1);
         }
       }
     }
-
     return mapped.length;
   }
-
-  const checkForGmailConnection = async () => {
-    // Check if user has already seen the connect dialog
-    const hasSeenConnectDialog = localStorage.getItem('freeform-email-connect-shown');
-    if (hasSeenConnectDialog) return;
-
-    // Check if user has any email accounts connected
-    const { data: accounts, error } = await supabase
-      .from('email_accounts')
-      .select('id')
-      .limit(1);
-
-    if (error) {
-      console.warn('Failed to check email accounts:', error);
-      return;
-    }
-
-    // If no accounts found, show the connect dialog
-    if (!accounts || accounts.length === 0) {
-      setShowConnectDialog(true);
-      localStorage.setItem('freeform-email-connect-shown', 'true');
-    }
-  };
-
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: {
+        subscription
+      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate('/auth');
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) navigate('/auth');
-      else {
+    supabase.auth.getSession().then(({
+      data: {
+        session
+      }
+    }) => {
+      if (!session) navigate('/auth');else {
         loadCategoriesAndUnreads();
         loadEmails(1);
-        checkForGmailConnection();
       }
     });
     return () => subscription.unsubscribe();
@@ -314,35 +305,35 @@ const Index = () => {
     console.log('Setting up auto-refresh interval');
     const REFRESH_MS = 2 * 60 * 1000;
     let cancelled = false;
-
     const tick = async () => {
       if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       if (cancelled) return;
       console.log('Auto-refreshing emails...');
       try {
         // Pull in recent messages from Gmail (lightweight import)
-        await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 50 } });
+        await supabase.functions.invoke('gmail-actions', {
+          body: {
+            action: 'import',
+            max: 50
+          }
+        });
       } catch (e) {
         console.warn('Auto-import failed:', e);
       }
       await loadCategoriesAndUnreads();
       await loadEmails(currentPage);
     };
-
     const interval = window.setInterval(() => {
       if (!isTypingInInput(document.activeElement)) {
         void tick();
       }
     }, REFRESH_MS);
-
     const onVisible = () => {
       if (document.visibilityState === 'visible') void tick();
     };
     const onFocus = () => void tick();
-
     window.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onFocus);
-
     return () => {
       console.log('Cleaning up auto-refresh interval');
       cancelled = true;
@@ -355,12 +346,14 @@ const Index = () => {
   const filtered = useMemo(() => {
     // Get user's email for sent filtering
     const getUserEmail = async () => {
-      const { data: accountData } = await supabase.from('email_accounts').select('email_address').limit(1);
+      const {
+        data: accountData
+      } = await supabase.from('email_accounts').select('email_address').limit(1);
       return accountData?.[0]?.email_address;
     };
 
     // Filter based on current mailbox
-    const base = emails.filter((e) => {
+    const base = emails.filter(e => {
       if (mailbox === "inbox") return e.labels.includes("inbox");
       if (mailbox === "sent") {
         // Check if email has SENT label or is from user's address
@@ -374,32 +367,32 @@ const Index = () => {
       }
       return true;
     });
-    
     if (!query.trim()) return base;
     const q = query.toLowerCase();
-    return base.filter(
-      (e) =>
-        e.subject.toLowerCase().includes(q) ||
-        e.from.toLowerCase().includes(q) ||
-        e.snippet.toLowerCase().includes(q)
-    );
+    return base.filter(e => e.subject.toLowerCase().includes(q) || e.from.toLowerCase().includes(q) || e.snippet.toLowerCase().includes(q));
   }, [emails, mailbox, query]);
-
-  const selected = useMemo(() => filtered.find((e) => e.id === selectedId) ?? filtered[0], [filtered, selectedId]);
-
+  const selected = useMemo(() => filtered.find(e => e.id === selectedId) ?? filtered[0], [filtered, selectedId]);
   useEffect(() => {
-    if (selected && !filtered.some((e) => e.id === selected.id)) {
+    if (selected && !filtered.some(e => e.id === selected.id)) {
       setSelectedId(filtered[0]?.id);
     }
     if (selected && !selected.body) {
       (async () => {
-        const { data, error } = await supabase.functions.invoke('gmail-actions', {
-          body: { action: 'get', id: selected.gmailId },
+        const {
+          data,
+          error
+        } = await supabase.functions.invoke('gmail-actions', {
+          body: {
+            action: 'get',
+            id: selected.gmailId
+          }
         });
         if (!error && data) {
-          setEmails((prev) => prev.map((e) => (
-            e.id === selected.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
-          )));
+          setEmails(prev => prev.map(e => e.id === selected.id ? {
+            ...e,
+            body: data.body_text || e.body,
+            bodyHtml: data.body_html || e.bodyHtml
+          } : e));
         }
       })();
     }
@@ -425,44 +418,51 @@ const Index = () => {
         return;
       }
       if (isTypingInInput(e.target)) return;
-      const idx = filtered.findIndex((m) => m.id === selectedId);
+      const idx = filtered.findIndex(m => m.id === selectedId);
       switch (e.key.toLowerCase()) {
         case "c":
           setComposeOpen(true);
           break;
-        case "j": {
-          const next = filtered[Math.min(idx + 1, filtered.length - 1)];
-          if (next) setSelectedId(next.id);
-          break;
-        }
-        case "k": {
-          const prev = filtered[Math.max(idx - 1, 0)];
-          if (prev) setSelectedId(prev.id);
-          break;
-        }
-        case "e": {
-          e.preventDefault();
-          archiveSelected();
-          break;
-        }
+        case "j":
+          {
+            const next = filtered[Math.min(idx + 1, filtered.length - 1)];
+            if (next) setSelectedId(next.id);
+            break;
+          }
+        case "k":
+          {
+            const prev = filtered[Math.max(idx - 1, 0)];
+            if (prev) setSelectedId(prev.id);
+            break;
+          }
+        case "e":
+          {
+            e.preventDefault();
+            archiveSelected();
+            break;
+          }
         case "backspace":
-        case "delete": {
-          e.preventDefault();
-          deleteSelected();
-          break;
-        }
-        case "r": {
-          e.preventDefault();
-          toast({ title: "Reply", description: "Reply opened (mock)", });
-          break;
-        }
+        case "delete":
+          {
+            e.preventDefault();
+            deleteSelected();
+            break;
+          }
+        case "r":
+          {
+            e.preventDefault();
+            toast({
+              title: "Reply",
+              description: "Reply opened (mock)"
+            });
+            break;
+          }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, selectedId]);
-
   const refillAfterChange = async () => {
     const len = await loadEmails(currentPage);
     if (len === 0 && currentPage > 1) {
@@ -471,157 +471,228 @@ const Index = () => {
       await loadEmails(newPage);
     }
   };
-
   const archiveSelected = async () => {
     if (!selected) return;
     const removingId = selected.id;
     // Optimistic remove from current page
-    setEmails((prev) => prev.filter((e) => e.id !== removingId));
-    setSelectedId((prev) => (prev === removingId ? undefined : prev));
-
-    const { error } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'modify', id: selected.gmailId, add: [], remove: ['INBOX'] },
+    setEmails(prev => prev.filter(e => e.id !== removingId));
+    setSelectedId(prev => prev === removingId ? undefined : prev);
+    const {
+      error
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'modify',
+        id: selected.gmailId,
+        add: [],
+        remove: ['INBOX']
+      }
     });
     if (error) {
-      toast({ title: 'Failed to archive', description: error.message });
+      toast({
+        title: 'Failed to archive',
+        description: error.message
+      });
     } else {
-      toast({ title: 'Archived', description: 'Conversation moved to Archive.' });
+      toast({
+        title: 'Archived',
+        description: 'Conversation moved to Archive.'
+      });
     }
     await refillAfterChange();
   };
-
   const deleteSelected = async () => {
     if (!selected) return;
     const removingId = selected.id;
-    setEmails((prev) => prev.filter((e) => e.id !== removingId));
-    setSelectedId((prev) => (prev === removingId ? undefined : prev));
-
-    const { error } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'modify', id: selected.gmailId, add: ['TRASH'], remove: [] },
+    setEmails(prev => prev.filter(e => e.id !== removingId));
+    setSelectedId(prev => prev === removingId ? undefined : prev);
+    const {
+      error
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'modify',
+        id: selected.gmailId,
+        add: ['TRASH'],
+        remove: []
+      }
     });
     if (error) {
-      toast({ title: 'Failed to delete', description: error.message });
+      toast({
+        title: 'Failed to delete',
+        description: error.message
+      });
     } else {
-      toast({ title: 'Deleted', description: 'Conversation moved to Trash.' });
+      toast({
+        title: 'Deleted',
+        description: 'Conversation moved to Trash.'
+      });
     }
     await refillAfterChange();
   };
-
   const toggleReadFor = async (email: Email) => {
     const willBeUnread = !email.unread ? true : false; // toggle
     // Modify Gmail labels: add/remove UNREAD
     const add = willBeUnread ? ['UNREAD'] : [];
     const remove = willBeUnread ? [] : ['UNREAD'];
-    const { error } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'modify', id: email.gmailId, add, remove },
+    const {
+      error
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'modify',
+        id: email.gmailId,
+        add,
+        remove
+      }
     });
     if (error) {
-      toast({ title: 'Failed', description: error.message });
+      toast({
+        title: 'Failed',
+        description: error.message
+      });
       return;
     }
-    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, unread: willBeUnread } : e)));
+    setEmails(prev => prev.map(e => e.id === email.id ? {
+      ...e,
+      unread: willBeUnread
+    } : e));
   };
-
   const toggleStar = async (email: Email) => {
     const willBeStarred = !email.starred;
     const add = willBeStarred ? ['STARRED'] : [];
     const remove = willBeStarred ? [] : ['STARRED'];
-    const { error } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'modify', id: email.gmailId, add, remove },
+    const {
+      error
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'modify',
+        id: email.gmailId,
+        add,
+        remove
+      }
     });
     if (error) {
-      toast({ title: 'Failed', description: error.message });
+      toast({
+        title: 'Failed',
+        description: error.message
+      });
       return;
     }
-    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, starred: willBeStarred } : e)));
+    setEmails(prev => prev.map(e => e.id === email.id ? {
+      ...e,
+      starred: willBeStarred
+    } : e));
   };
-
   const markAsRead = async (email: Email) => {
     if (!email.unread) return; // Already read, nothing to do
-    
+
     // Update database
-    const { error } = await supabase
-      .from('email_messages')
-      .update({ is_read: true })
-      .eq('id', email.id);
-    
+    const {
+      error
+    } = await supabase.from('email_messages').update({
+      is_read: true
+    }).eq('id', email.id);
     if (error) {
       console.error('Failed to mark email as read:', error);
       return;
     }
-    
+
     // Update local state
-    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, unread: false } : e)));
-    
+    setEmails(prev => prev.map(e => e.id === email.id ? {
+      ...e,
+      unread: false
+    } : e));
+
     // Also update the Gmail side to mark as read
-    const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'modify', id: email.gmailId, remove: ['UNREAD'] },
+    const {
+      error: gmailError
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'modify',
+        id: email.gmailId,
+        remove: ['UNREAD']
+      }
     });
-    
     if (gmailError) {
       console.warn('Failed to mark email as read in Gmail:', gmailError);
     }
   };
-
   const handleImport = async (max = 100) => {
-    toast({ title: 'Importing…', description: `Fetching latest ${max} emails.` });
-    const { data, error } = await supabase.functions.invoke("gmail-actions", { body: { action: "import", max } });
+    toast({
+      title: 'Importing…',
+      description: `Fetching latest ${max} emails.`
+    });
+    const {
+      data,
+      error
+    } = await supabase.functions.invoke("gmail-actions", {
+      body: {
+        action: "import",
+        max
+      }
+    });
     if (error) {
-      toast({ title: "Import failed", description: error.message });
+      toast({
+        title: "Import failed",
+        description: error.message
+      });
       return;
     }
-    toast({ title: "Imported", description: `${data?.imported ?? 0} messages imported.` });
+    toast({
+      title: "Imported",
+      description: `${data?.imported ?? 0} messages imported.`
+    });
     await loadEmails(1);
     setCurrentPage(1);
   };
-
   const switchMailbox = async (newMailbox: string) => {
     setMailbox(newMailbox);
     setCurrentPage(1);
     setSelectedId(undefined);
     await loadEmails(1, newMailbox);
   };
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <header onMouseMove={onPointerMove} className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div ref={glowRef} className="relative">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(600px circle at var(--x) var(--y), hsl(var(--primary)/0.12), transparent 60%)",
-            }}
-          />
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{
+          background: "radial-gradient(600px circle at var(--x) var(--y), hsl(var(--primary)/0.12), transparent 60%)"
+        }} />
           <div className="container flex items-center gap-3 py-3">
             <Mail className="h-5 w-5 text-primary" aria-hidden />
-            <h1 className="text-lg font-semibold tracking-tight">Freeform Email — Superhuman-style Gmail client</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Velocity Mail — Superhuman-style Gmail client</h1>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:block w-72">
-                <Input
-                  aria-label="Search mail"
-                  placeholder="Search (Cmd/Ctrl+K)"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
+                <Input aria-label="Search mail" placeholder="Search (Cmd/Ctrl+K)" value={query} onChange={e => setQuery(e.target.value)} />
               </div>
               <Button variant="secondary" onClick={async () => {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                  toast({ title: "Login required", description: "Please log in to connect Gmail." });
-                  return;
+              const {
+                data: {
+                  session
                 }
-                const { data, error } = await supabase.functions.invoke("gmail-oauth", {
-                  body: { redirect_url: window.location.origin },
+              } = await supabase.auth.getSession();
+              if (!session) {
+                toast({
+                  title: "Login required",
+                  description: "Please log in to connect Gmail."
                 });
-                if (error || !data?.authUrl) {
-                  toast({ title: "Error", description: error?.message || "Could not start Google OAuth." });
-                  return;
+                return;
+              }
+              const {
+                data,
+                error
+              } = await supabase.functions.invoke("gmail-oauth", {
+                body: {
+                  redirect_url: window.location.origin
                 }
-                window.location.href = data.authUrl;
-              }}>Connect Gmail</Button>
-              <Button onClick={() => setComposeOpen(true)}>Compose</Button>
+              });
+              if (error || !data?.authUrl) {
+                toast({
+                  title: "Error",
+                  description: error?.message || "Could not start Google OAuth."
+                });
+                return;
+              }
+              window.location.href = data.authUrl;
+            }}>Connect Gmail</Button>
+              <Button onClick={() => setComposeOpen(true)}>Freeform Email </Button>
             </div>
           </div>
         </div>
@@ -636,45 +707,17 @@ const Index = () => {
                 Mail ({totalUnreads} unread)
               </div>
             </div>
-            <SidebarItem
-              label="Inbox"
-              active={mailbox === "inbox"}
-              count={emails.filter((e) => e.labels.includes("inbox") && e.unread).length}
-              onClick={() => switchMailbox("inbox")}
-            />
-            <SidebarItem
-              label="Sent"
-              active={mailbox === "sent"}
-              onClick={() => switchMailbox("sent")}
-            />
-            <SidebarItem
-              label="Starred"
-              active={mailbox === "starred"}
-              count={emails.filter((e) => e.starred && e.unread).length}
-              onClick={() => switchMailbox("starred")}
-            />
-            <SidebarItem
-              label="Archived"
-              active={mailbox === "archived"}
-              onClick={() => switchMailbox("archived")}
-            />
+            <SidebarItem label="Inbox" active={mailbox === "inbox"} count={emails.filter(e => e.labels.includes("inbox") && e.unread).length} onClick={() => switchMailbox("inbox")} />
+            <SidebarItem label="Sent" active={mailbox === "sent"} onClick={() => switchMailbox("sent")} />
+            <SidebarItem label="Starred" active={mailbox === "starred"} count={emails.filter(e => e.starred && e.unread).length} onClick={() => switchMailbox("starred")} />
+            <SidebarItem label="Archived" active={mailbox === "archived"} onClick={() => switchMailbox("archived")} />
             
-            {categories.length > 0 && (
-              <>
+            {categories.length > 0 && <>
                 <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Categories
                 </div>
-                {categories.map((category) => (
-                  <SidebarItem
-                    key={category}
-                    label={category}
-                    active={mailbox === category}
-                    count={emails.filter((e) => e.labels.includes(category.toLowerCase()) && e.unread).length}
-                    onClick={() => switchMailbox(category)}
-                  />
-                ))}
-              </>
-            )}
+                {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => switchMailbox(category)} />)}
+              </>}
           </nav>
           <div className="px-3 pb-3">
             <div className="rounded-md border p-3 text-sm text-muted-foreground">
@@ -686,47 +729,27 @@ const Index = () => {
         {/* List */}
         <section className="rounded-lg border bg-card overflow-hidden">
           <ScrollArea className="h-[calc(100vh-9.5rem)]">
-            {isLoading || isImportingSent ? (
-              <div className="flex items-center justify-center h-64">
+            {isLoading || isImportingSent ? <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
                   <p className="text-sm text-muted-foreground">
                     {isImportingSent ? 'Importing sent emails...' : 'Loading emails...'}
                   </p>
                 </div>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="p-6 text-sm text-muted-foreground">
+              </div> : filtered.length === 0 ? <div className="p-6 text-sm text-muted-foreground">
                 No messages yet. Click "Connect Gmail" to load your inbox.
-              </div>
-            ) : (
-              <div className="divide-y">
-                {filtered.map((m) => (
-                  <div key={m.id}>
-                     <button
-                       className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors overflow-hidden ${
-                         selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
-                       }`}
-                       onClick={() => {
-                         setSelectedId(m.id);
-                         markAsRead(m);
-                       }}
-                       aria-current={selected?.id === m.id}
-                     >
+              </div> : <div className="divide-y">
+                {filtered.map(m => <div key={m.id}>
+                     <button className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors overflow-hidden ${selected?.id === m.id ? "bg-accent" : "hover:bg-accent"}`} onClick={() => {
+                setSelectedId(m.id);
+                markAsRead(m);
+              }} aria-current={selected?.id === m.id}>
                        <div className="flex items-center gap-2 h-full">
-                         <button
-                           className="shrink-0 text-xs p-1"
-                           aria-label={m.starred ? "Unstar" : "Star"}
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             toggleStar(m);
-                           }}
-                         >
-                           {m.starred ? (
-                             <Star className="h-3 w-3 text-primary fill-primary" />
-                           ) : (
-                             <StarOff className="h-3 w-3 text-muted-foreground" />
-                           )}
+                         <button className="shrink-0 text-xs p-1" aria-label={m.starred ? "Unstar" : "Star"} onClick={e => {
+                    e.stopPropagation();
+                    toggleStar(m);
+                  }}>
+                           {m.starred ? <Star className="h-3 w-3 text-primary fill-primary" /> : <StarOff className="h-3 w-3 text-muted-foreground" />}
                          </button>
                           <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
                             <div className="flex items-center gap-2 min-w-0">
@@ -742,74 +765,57 @@ const Index = () => {
                          <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                        </div>
                      </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  </div>)}
+              </div>}
           </ScrollArea>
-          {totalEmails > PAGE_SIZE && (
-            <div className="border-t p-3">
+          {totalEmails > PAGE_SIZE && <div className="border-t p-3">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious 
-                      onClick={() => {
-                        if (currentPage > 1) {
-                          const newPage = currentPage - 1;
-                          setCurrentPage(newPage);
-                          loadEmails(newPage);
-                        }
-                      }}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
+                    <PaginationPrevious onClick={() => {
+                  if (currentPage > 1) {
+                    const newPage = currentPage - 1;
+                    setCurrentPage(newPage);
+                    loadEmails(newPage);
+                  }
+                }} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                   </PaginationItem>
                   
-                  {Array.from({ length: Math.min(5, Math.ceil(totalEmails / PAGE_SIZE)) }, (_, i) => {
-                    const page = i + 1;
-                    return (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          onClick={() => {
-                            setCurrentPage(page);
-                            loadEmails(page);
-                          }}
-                          isActive={currentPage === page}
-                          className="cursor-pointer"
-                        >
+                  {Array.from({
+                length: Math.min(5, Math.ceil(totalEmails / PAGE_SIZE))
+              }, (_, i) => {
+                const page = i + 1;
+                return <PaginationItem key={page}>
+                        <PaginationLink onClick={() => {
+                    setCurrentPage(page);
+                    loadEmails(page);
+                  }} isActive={currentPage === page} className="cursor-pointer">
                           {page}
                         </PaginationLink>
-                      </PaginationItem>
-                    );
-                  })}
+                      </PaginationItem>;
+              })}
                   
-                  {Math.ceil(totalEmails / PAGE_SIZE) > 5 && (
-                    <PaginationItem>
+                  {Math.ceil(totalEmails / PAGE_SIZE) > 5 && <PaginationItem>
                       <PaginationEllipsis />
-                    </PaginationItem>
-                  )}
+                    </PaginationItem>}
                   
                   <PaginationItem>
-                    <PaginationNext 
-                      onClick={() => {
-                        if (currentPage < Math.ceil(totalEmails / PAGE_SIZE)) {
-                          const newPage = currentPage + 1;
-                          setCurrentPage(newPage);
-                          loadEmails(newPage);
-                        }
-                      }}
-                      className={currentPage >= Math.ceil(totalEmails / PAGE_SIZE) ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
+                    <PaginationNext onClick={() => {
+                  if (currentPage < Math.ceil(totalEmails / PAGE_SIZE)) {
+                    const newPage = currentPage + 1;
+                    setCurrentPage(newPage);
+                    loadEmails(newPage);
+                  }
+                }} className={currentPage >= Math.ceil(totalEmails / PAGE_SIZE) ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
-            </div>
-          )}
+            </div>}
         </section>
 
         {/* Detail */}
         <article className="rounded-lg border bg-card overflow-hidden">
-          {selected ? (
-            <div className="flex h-full flex-col">
+          {selected ? <div className="flex h-full flex-col">
               <div className="border-b">
                 <div className="px-4 pt-4 pb-2">
                   <h2 className="text-xl font-normal leading-tight">{selected.subject}</h2>
@@ -819,38 +825,23 @@ const Index = () => {
                     From: {selected.from}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2 text-xs border border-black"
-                      onClick={async () => {
-                        if (selected) await toggleReadFor(selected);
-                      }}
-                    >
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={async () => {
+                  if (selected) await toggleReadFor(selected);
+                }}>
                       {selected?.unread ? 'Mark as read' : 'Mark as unread'}
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2 text-xs border border-black"
-                      onClick={() => {
-                        if (!selected) return;
-                        setReplyDraft({
-                          to: selected.from,
-                          subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
-                          body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`,
-                        });
-                        setComposeOpen(true);
-                      }}
-                    >
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
+                  if (!selected) return;
+                  setReplyDraft({
+                    to: selected.from,
+                    subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
+                    body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`
+                  });
+                  setComposeOpen(true);
+                }}>
                       <Reply className="mr-1 h-3 w-3" /> Reply
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2 text-xs border border-black"
-                      onClick={archiveSelected}
-                    >
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
                       <Archive className="mr-1 h-3 w-3" /> Archive
                     </Button>
                   </div>
@@ -861,12 +852,9 @@ const Index = () => {
                   <EmailContent htmlContent={selected.bodyHtml} textContent={selected.body} />
                 </div>
               </ScrollArea>
-            </div>
-          ) : (
-            <div className="grid h-full place-items-center p-6 text-muted-foreground">
+            </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">
               Select a conversation to view
-            </div>
-          )}
+            </div>}
         </article>
       </main>
 
@@ -892,11 +880,9 @@ const Index = () => {
             <CommandItem onSelect={() => switchMailbox("archived")}>
               Archived
             </CommandItem>
-            {categories.map((category) => (
-              <CommandItem key={category} onSelect={() => switchMailbox(category)}>
+            {categories.map(category => <CommandItem key={category} onSelect={() => switchMailbox(category)}>
                 {category}
-              </CommandItem>
-            ))}
+              </CommandItem>)}
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Actions">
@@ -907,86 +893,45 @@ const Index = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
-
-      {/* Gmail Connection Dialog */}
-      <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center">Connect Your Gmail</DialogTitle>
-          </DialogHeader>
-          <div className="text-center space-y-4 py-4">
-            <Mail className="h-12 w-12 text-primary mx-auto" />
-            <p className="text-muted-foreground">
-              Welcome to Freeform Email! To get started, connect your Gmail account to sync your emails.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              This will securely import your messages and allow you to manage your emails with our lightning-fast interface.
-            </p>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowConnectDialog(false)}
-              className="w-full sm:w-auto"
-            >
-              Maybe later
-            </Button>
-            <Button 
-              onClick={async () => {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                  toast({ title: "Login required", description: "Please log in to connect Gmail." });
-                  return;
-                }
-                const { data, error } = await supabase.functions.invoke("gmail-oauth", {
-                  body: { redirect_url: window.location.origin },
-                });
-                if (error || !data?.authUrl) {
-                  toast({ title: "Error", description: error?.message || "Could not start Google OAuth." });
-                  return;
-                }
-                setShowConnectDialog(false);
-                window.location.href = data.authUrl;
-              }}
-              className="w-full sm:w-auto"
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              Connect Gmail
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+    </div>;
 };
-
-function SidebarItem({ label, count, active, onClick }: { label: string; count?: number; active?: boolean; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${
-        active ? "bg-accent" : "hover:bg-accent"
-      }`}
-    >
+function SidebarItem({
+  label,
+  count,
+  active,
+  onClick
+}: {
+  label: string;
+  count?: number;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return <button onClick={onClick} className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${active ? "bg-accent" : "hover:bg-accent"}`}>
       <span className="font-medium">{label}</span>
-      {typeof count === "number" && count > 0 && (
-        <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{count}</span>
-      )}
-    </button>
-  );
+      {typeof count === "number" && count > 0 && <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{count}</span>}
+    </button>;
 }
-
-function ComposeDialog({ open, onOpenChange, initialTo, initialSubject, initialBody }: { open: boolean; onOpenChange: (v: boolean) => void; initialTo?: string; initialSubject?: string; initialBody?: string }) {
+function ComposeDialog({
+  open,
+  onOpenChange,
+  initialTo,
+  initialSubject,
+  initialBody
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  initialTo?: string;
+  initialSubject?: string;
+  initialBody?: string;
+}) {
   const toRef = useRef<HTMLInputElement>(null);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-
   useEffect(() => {
     if (open) setTimeout(() => toRef.current?.focus(), 50);
   }, [open]);
-
   useEffect(() => {
     if (open) {
       setTo(initialTo || "");
@@ -994,31 +939,45 @@ function ComposeDialog({ open, onOpenChange, initialTo, initialSubject, initialB
       setBody(initialBody || "");
     }
   }, [open, initialTo, initialSubject, initialBody]);
-
   const handleSend = async () => {
-    const toList = to.split(',').map((s) => s.trim()).filter(Boolean);
+    const toList = to.split(',').map(s => s.trim()).filter(Boolean);
     if (toList.length === 0) {
-      toast({ title: 'Add recipient', description: 'Please add at least one email address.' });
+      toast({
+        title: 'Add recipient',
+        description: 'Please add at least one email address.'
+      });
       return;
     }
     setSending(true);
-    const { data, error } = await supabase.functions.invoke('gmail-actions', {
-      body: { action: 'send', to: toList, subject, text: body },
+    const {
+      data,
+      error
+    } = await supabase.functions.invoke('gmail-actions', {
+      body: {
+        action: 'send',
+        to: toList,
+        subject,
+        text: body
+      }
     });
     setSending(false);
     if (error) {
-      toast({ title: 'Send failed', description: error.message });
+      toast({
+        title: 'Send failed',
+        description: error.message
+      });
       return;
     }
-    toast({ title: 'Sent', description: 'Message delivered.' });
+    toast({
+      title: 'Sent',
+      description: 'Message delivered.'
+    });
     onOpenChange(false);
     setTo("");
     setSubject("");
     setBody("");
   };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+  return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <span className="sr-only">Compose</span>
       </DialogTrigger>
@@ -1027,16 +986,10 @@ function ComposeDialog({ open, onOpenChange, initialTo, initialSubject, initialB
           <DialogTitle>New message</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <Input ref={toRef} placeholder="To" aria-label="To" value={to} onChange={(e) => setTo(e.target.value)} />
-          <Input placeholder="Subject" aria-label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <Input ref={toRef} placeholder="To" aria-label="To" value={to} onChange={e => setTo(e.target.value)} />
+          <Input placeholder="Subject" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)} />
           <div>
-            <textarea
-              aria-label="Message body"
-              className="min-h-[160px] w-full rounded-md border bg-background p-3 outline-none"
-              placeholder="Say hello…"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
+            <textarea aria-label="Message body" className="min-h-[160px] w-full rounded-md border bg-background p-3 outline-none" placeholder="Say hello…" value={body} onChange={e => setBody(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
@@ -1048,8 +1001,6 @@ function ComposeDialog({ open, onOpenChange, initialTo, initialSubject, initialB
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>;
 }
-
 export default Index;
