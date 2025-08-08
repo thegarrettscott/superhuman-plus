@@ -25,8 +25,8 @@ const setSeo = (title: string, description: string) => {
 export default function Landing() {
   useEffect(() => {
     setSeo(
-      "Velocity Mail — Fast Gmail Client",
-      "Landing page for Velocity Mail: keyboard-first Gmail experience with OAuth integration."
+      "Freeform Email — Fast Gmail Client",
+      "Landing page for Freeform Email: keyboard-first Gmail experience with OAuth integration."
     );
   }, []);
 
@@ -35,7 +35,7 @@ export default function Landing() {
       <header className="border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex items-center gap-3 py-4">
           <Mail className="h-5 w-5 text-primary" aria-hidden />
-          <h1 className="text-lg font-semibold tracking-tight">Velocity Mail</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Freeform Email</h1>
           <nav className="ml-auto flex items-center gap-2">
             <Link to="/auth"><Button variant="secondary">Sign in</Button></Link>
           </nav>

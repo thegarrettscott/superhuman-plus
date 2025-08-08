@@ -63,9 +63,9 @@ const isTypingInInput = (el: EventTarget | null) => {
 const Index = () => {
   // SEO basics
   useEffect(() => {
-    document.title = "Velocity Mail — Superhuman-style Gmail";
+    document.title = "Freeform Email — Superhuman-style Gmail";
     const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute("content", "A Superhuman-style Gmail client: keyboard-first, fast triage, elegant UI.");
+    if (meta) meta.setAttribute("content", "A Freeform Email client: keyboard-first, fast triage, elegant UI.");
 
     // Connection feedback
     const params = new URLSearchParams(window.location.search);
@@ -272,7 +272,7 @@ const Index = () => {
 
   const checkForGmailConnection = async () => {
     // Check if user has already seen the connect dialog
-    const hasSeenConnectDialog = localStorage.getItem('velocitymail-connect-shown');
+    const hasSeenConnectDialog = localStorage.getItem('freeform-email-connect-shown');
     if (hasSeenConnectDialog) return;
 
     // Check if user has any email accounts connected
@@ -289,7 +289,7 @@ const Index = () => {
     // If no accounts found, show the connect dialog
     if (!accounts || accounts.length === 0) {
       setShowConnectDialog(true);
-      localStorage.setItem('velocitymail-connect-shown', 'true');
+      localStorage.setItem('freeform-email-connect-shown', 'true');
     }
   };
 
@@ -596,7 +596,7 @@ const Index = () => {
           />
           <div className="container flex items-center gap-3 py-3">
             <Mail className="h-5 w-5 text-primary" aria-hidden />
-            <h1 className="text-lg font-semibold tracking-tight">Velocity Mail — Superhuman-style Gmail client</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Freeform Email — Superhuman-style Gmail client</h1>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:block w-72">
                 <Input
@@ -917,7 +917,7 @@ const Index = () => {
           <div className="text-center space-y-4 py-4">
             <Mail className="h-12 w-12 text-primary mx-auto" />
             <p className="text-muted-foreground">
-              Welcome to Velocity Mail! To get started, connect your Gmail account to sync your emails.
+              Welcome to Freeform Email! To get started, connect your Gmail account to sync your emails.
             </p>
             <p className="text-sm text-muted-foreground">
               This will securely import your messages and allow you to manage your emails with our lightning-fast interface.

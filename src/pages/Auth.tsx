@@ -34,7 +34,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setSeo("Sign in — Velocity Mail", "Sign in or create an account to access Velocity Mail.");
+    setSeo("Sign in — Freeform Email", "Sign in or create an account to access Freeform Email.");
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) navigate('/mail');
@@ -80,7 +80,7 @@ export default function Auth() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex items-center justify-between py-4">
-          <Link to="/"><span className="font-semibold">Velocity Mail</span></Link>
+          <Link to="/"><span className="font-semibold">Freeform Email</span></Link>
           <Button variant="ghost" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
             {mode === 'signin' ? 'Create account' : 'Have an account? Sign in'}
           </Button>
