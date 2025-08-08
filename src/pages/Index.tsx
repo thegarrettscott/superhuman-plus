@@ -797,7 +797,7 @@ const Index = () => {
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="h-8 px-2 text-xs"
+                      className="h-8 px-2 text-xs border border-black"
                       onClick={async () => {
                         if (selected) await toggleReadFor(selected);
                       }}
@@ -807,7 +807,7 @@ const Index = () => {
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="h-8 px-2 text-xs"
+                      className="h-8 px-2 text-xs border border-black"
                       onClick={() => {
                         if (!selected) return;
                         setReplyDraft({
@@ -823,7 +823,7 @@ const Index = () => {
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="h-8 px-2 text-xs"
+                      className="h-8 px-2 text-xs border border-black"
                       onClick={archiveSelected}
                     >
                       <Archive className="mr-1 h-3 w-3" /> Archive
