@@ -495,10 +495,9 @@ const Index = () => {
         case "r":
           {
             e.preventDefault();
-            toast({
-              title: "Reply",
-              description: "Reply opened (mock)"
-            });
+            if (selected) {
+              handleReply(selected);
+            }
             break;
           }
       }
@@ -754,6 +753,25 @@ const Index = () => {
       console.warn('Failed to mark email as read in Gmail:', gmailError);
     }
   };
+
+  const handleReply = (email: Email) => {
+    // Extract sender email from the "from" field
+    const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
+    const senderEmail = emailMatch ? emailMatch[1] || emailMatch[0] : email.from;
+    
+    // Prepare reply subject (add "Re: " if not already present)
+    const replySubject = email.subject.startsWith('Re: ') ? email.subject : `Re: ${email.subject}`;
+    
+    // Create quoted original message for reply body
+    const originalMessage = `\n\n--- Original Message ---\nFrom: ${email.from}\nDate: ${email.date}\nSubject: ${email.subject}\n\n${email.body}`;
+    
+    setReplyDraft({
+      to: senderEmail,
+      subject: replySubject,
+      body: originalMessage
+    });
+    setComposeOpen(true);
+  };
   const handleImport = async (max = 100) => {
     toast({
       title: 'Importing…',
@@ -980,15 +998,7 @@ const Index = () => {
                 }}>
                       {selected?.unread ? 'Mark as read' : 'Mark as unread'}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
-                  if (!selected) return;
-                  setReplyDraft({
-                    to: selected.from,
-                    subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
-                    body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`
-                  });
-                  setComposeOpen(true);
-                }}>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => handleReply(selected)}>
                       <Reply className="mr-1 h-3 w-3" /> Reply
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
@@ -999,7 +1009,7 @@ const Index = () => {
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
-                  <EmailContent email={selected} />
+                  <EmailContent email={selected} onReply={handleReply} />
                 </div>
               </ScrollArea>
             </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">

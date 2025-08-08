@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Reply } from 'lucide-react';
 
 type Email = {
   id: string;
@@ -16,9 +18,10 @@ type Email = {
 
 interface EmailContentProps {
   email: Email;
+  onReply?: (email: Email) => void;
 }
 
-export const EmailContent = ({ email }: EmailContentProps) => {
+export const EmailContent = ({ email, onReply }: EmailContentProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,9 +95,22 @@ export const EmailContent = ({ email }: EmailContentProps) => {
           <span>{email.date}</span>
         </div>
       </div>
-      <div className="leading-7 whitespace-pre-wrap text-foreground">
+      <div className="leading-7 whitespace-pre-wrap text-foreground mb-6">
         {email.body}
       </div>
+      {onReply && (
+        <div className="flex gap-2 pt-4 border-t">
+          <Button 
+            onClick={() => onReply(email)} 
+            variant="outline" 
+            size="sm"
+            className="gap-2"
+          >
+            <Reply className="h-4 w-4" />
+            Reply
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
