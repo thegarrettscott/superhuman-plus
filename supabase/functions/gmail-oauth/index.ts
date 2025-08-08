@@ -28,6 +28,16 @@ const b64urlToBytes = (str: string) => {
   return bytes.buffer;
 };
 
+// Constant-time compare for Deno (no crypto.timingSafeEqual available)
+function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
+}
+
 async function hmacSign(data: string) {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -103,13 +113,11 @@ serve(async (req) => {
       const payloadStr = new TextDecoder().decode(new Uint8Array(b64urlToBytes(payloadB64)));
       const sigBytes = b64urlToBytes(sigB64);
 
-      const expectedSig = await hmacSign(payloadStr);
-      const sigOk = crypto.timingSafeEqual(new Uint8Array(expectedSig), new Uint8Array(sigBytes));
+const expectedSig = await hmacSign(payloadStr);
+      const sigOk = timingSafeEqual(new Uint8Array(expectedSig), new Uint8Array(sigBytes));
       if (!sigOk) return new Response("Invalid state signature", { status: 400, headers: corsHeaders });
-
       const payload = JSON.parse(payloadStr) as { user_id: string; ts: number; redirect_url?: string };
       const redirectBack = payload.redirect_url || "/";
-
       // Exchange code for tokens
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
