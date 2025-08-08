@@ -535,19 +535,17 @@ const Index = () => {
                              <StarOff className="h-3 w-3 text-muted-foreground" />
                            )}
                          </button>
-                          <div className="flex min-w-0 flex-col flex-1 gap-1 overflow-hidden h-12 py-2">
+                          <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
                             <div className="flex items-center gap-2 min-w-0">
-                              <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
-                                {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
-                              </p>
-                              <div className="w-2 h-2 shrink-0">
-                                {m.unread && <div className="w-2 h-2 bg-primary rounded-full" />}
-                              </div>
-                            </div>
-                            <p className="min-w-0 truncate text-xs text-muted-foreground leading-none">
-                              {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
-                            </p>
-                          </div>
+                               <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                                 {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
+                               </p>
+                               {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                             </div>
+                             <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
+                               {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                             </p>
+                         </div>
                          <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                        </div>
                      </button>
