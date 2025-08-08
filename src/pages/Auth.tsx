@@ -56,13 +56,18 @@ export default function Auth() {
         navigate('/mail');
       } else {
         const redirectUrl = `${window.location.origin}/mail`;
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: redirectUrl }
         });
         if (error) throw error;
-        toast({ title: 'Check your email', description: 'Confirm your address to finish signup.' });
+        if (data.session) {
+          toast({ title: 'Account created', description: 'You are now signed in.' });
+          navigate('/mail');
+        } else {
+          toast({ title: 'Check your email', description: 'Confirm your address to finish signup.' });
+        }
       }
     } catch (err: any) {
       toast({ title: 'Auth error', description: err?.message || 'Something went wrong' });
