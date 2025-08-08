@@ -495,9 +495,10 @@ const Index = () => {
         case "r":
           {
             e.preventDefault();
-            if (selected) {
-              handleReply(selected);
-            }
+            toast({
+              title: "Reply",
+              description: "Reply interface opened inline"
+            });
             break;
           }
       }
@@ -754,23 +755,29 @@ const Index = () => {
     }
   };
 
-  const handleReply = (email: Email) => {
-    // Extract sender email from the "from" field
-    const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
-    const senderEmail = emailMatch ? emailMatch[1] || emailMatch[0] : email.from;
-    
-    // Prepare reply subject (add "Re: " if not already present)
-    const replySubject = email.subject.startsWith('Re: ') ? email.subject : `Re: ${email.subject}`;
-    
-    // Create quoted original message for reply body
-    const originalMessage = `\n\n--- Original Message ---\nFrom: ${email.from}\nDate: ${email.date}\nSubject: ${email.subject}\n\n${email.body}`;
-    
-    setReplyDraft({
-      to: senderEmail,
-      subject: replySubject,
-      body: originalMessage
-    });
-    setComposeOpen(true);
+  const handleSendReply = async (to: string, subject: string, body: string) => {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body })
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Reply sent",
+          description: "Your reply has been sent successfully"
+        });
+      } else {
+        throw new Error('Failed to send reply');
+      }
+    } catch (error) {
+      toast({
+        title: "Failed to send reply",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
   };
   const handleImport = async (max = 100) => {
     toast({
@@ -998,7 +1005,12 @@ const Index = () => {
                 }}>
                       {selected?.unread ? 'Mark as read' : 'Mark as unread'}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => handleReply(selected)}>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => {
+                      toast({
+                        title: "Reply",
+                        description: "Reply interface available in email content"
+                      });
+                    }}>
                       <Reply className="mr-1 h-3 w-3" /> Reply
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
@@ -1009,7 +1021,7 @@ const Index = () => {
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
-                  <EmailContent email={selected} onReply={handleReply} />
+                  <EmailContent email={selected} onSendReply={handleSendReply} />
                 </div>
               </ScrollArea>
             </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">
