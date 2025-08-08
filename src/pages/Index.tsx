@@ -104,10 +104,12 @@ const Index = () => {
       .select('*')
       .order('internal_date', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
+      
     if (error) {
       console.error('loadEmails error', error);
       return;
     }
+    
     const mapped: Email[] = ((data as any[]) || []).map((row: any) => ({
       id: row.id,
       gmailId: row.gmail_message_id,
@@ -121,27 +123,30 @@ const Index = () => {
       body: row.body_text || '',
       bodyHtml: row.body_html || undefined,
     }));
-    // Load bodies proactively for all emails
-    if (mapped.length) {
-      setEmails(mapped);
+    
+    // Always set emails and select first email for any page
+    setEmails(mapped);
+    if (mapped.length > 0) {
       setSelectedId(mapped[0].id);
-      
-      // Load bodies in background for all emails
-      mapped.forEach(async (email) => {
-        if (!email.body) {
-          const { data } = await supabase.functions.invoke('gmail-actions', {
-            body: { action: 'get', id: email.gmailId },
-          });
-          if (data) {
-            setEmails((prev) => prev.map((e) => (
-              e.id === email.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
-            )));
-          }
+    }
+    
+    // Load bodies proactively for all emails on current page
+    mapped.forEach(async (email) => {
+      if (!email.body) {
+        const { data } = await supabase.functions.invoke('gmail-actions', {
+          body: { action: 'get', id: email.gmailId },
+        });
+        if (data) {
+          setEmails((prev) => prev.map((e) => (
+            e.id === email.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
+          )));
         }
-      });
-    } else if (!autoImported && page === 1) {
+      }
+    });
+    
+    // Auto-import only on first page if no emails exist
+    if (mapped.length === 0 && !autoImported && page === 1) {
       setAutoImported(true);
-      // If a Gmail account is connected, auto-import up to 100 messages
       const { data: accRows, error: accErr } = await supabase
         .from('email_accounts')
         .select('id')
@@ -151,7 +156,7 @@ const Index = () => {
         return;
       }
       if (accRows && accRows.length > 0) {
-        toast({ title: 'Importing…', description: 'Fetching your latest 100 emails.' });
+        toast({ title: 'Importing…', description: 'Fetching your latest emails.' });
         const { data: impData, error: impError } = await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 100 } });
         if (impError) {
           toast({ title: 'Import failed', description: impError.message });
@@ -401,9 +406,9 @@ const Index = () => {
                 No messages yet. Click "Connect Gmail" to load your inbox.
               </div>
             ) : (
-              <ul className="divide-y">
+              <div className="divide-y">
                 {filtered.map((m) => (
-                  <li key={m.id}>
+                  <div key={m.id}>
                     <button
                       className={`w-full text-left px-3 py-2 focus:outline-none transition-colors ${
                         selected?.id === m.id ? "bg-accent" : "hover:bg-accent"
@@ -436,9 +441,9 @@ const Index = () => {
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                       </div>
                     </button>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </ScrollArea>
           {totalEmails > PAGE_SIZE && (
