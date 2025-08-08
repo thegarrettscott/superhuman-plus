@@ -101,9 +101,19 @@ serve(async (req) => {
       if (!account.refresh_token) return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       // Refresh token
-      const token = await refreshAccessToken(account.refresh_token);
-      const access_token: string = token.access_token;
-      const expires_in: number = token.expires_in ?? 0;
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Store latest access token
       await admin
@@ -112,8 +122,18 @@ serve(async (req) => {
         .eq("id", account.id);
 
       // Fetch recent messages
-      const ids = await listRecentMessageIds(access_token, max);
+      let ids: string[] = [];
+      try {
+        ids = await listRecentMessageIds(access_token, max);
+      } catch (err) {
+        console.error("gmail-actions listRecentMessageIds error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to list Gmail messages. Please try importing again." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       const messages = await Promise.all(ids.map((id: string) => getMessage(access_token, id)));
+
 
       // Prepare rows
       const rows = messages.map((m) => ({
