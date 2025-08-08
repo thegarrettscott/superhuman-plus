@@ -785,33 +785,54 @@ const Index = () => {
         <article className="rounded-lg border bg-card overflow-hidden">
           {selected ? (
             <div className="flex h-full flex-col">
-              <div className="flex items-center gap-2 border-b p-4">
-                <h2 className="text-base font-semibold leading-none tracking-tight">{selected.subject}</h2>
-                <div className="ml-auto flex items-center gap-2">
-                  <Button variant="secondary" onClick={async () => {
-                    if (selected) await toggleReadFor(selected);
-                  }}>
-                    {selected?.unread ? 'Mark as read' : 'Mark as unread'}
-                  </Button>
-                  <Button variant="secondary" onClick={() => {
-                    if (!selected) return;
-                    setReplyDraft({
-                      to: selected.from,
-                      subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
-                      body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`,
-                    });
-                    setComposeOpen(true);
-                  }}>
-                    <Reply className="mr-2 h-4 w-4" /> Reply
-                  </Button>
-                  <Button variant="secondary" onClick={archiveSelected}>
-                    <Archive className="mr-2 h-4 w-4" /> Archive (E)
-                  </Button>
+              <div className="border-b">
+                <div className="px-4 pt-4 pb-2">
+                  <h2 className="text-xl font-normal leading-tight">{selected.subject}</h2>
+                </div>
+                <div className="px-4 pb-3 flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    From: {selected.from}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2 text-xs"
+                      onClick={async () => {
+                        if (selected) await toggleReadFor(selected);
+                      }}
+                    >
+                      {selected?.unread ? 'Mark as read' : 'Mark as unread'}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        if (!selected) return;
+                        setReplyDraft({
+                          to: selected.from,
+                          subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
+                          body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`,
+                        });
+                        setComposeOpen(true);
+                      }}
+                    >
+                      <Reply className="mr-1 h-3 w-3" /> Reply
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2 text-xs"
+                      onClick={archiveSelected}
+                    >
+                      <Archive className="mr-1 h-3 w-3" /> Archive
+                    </Button>
+                  </div>
                 </div>
               </div>
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
-                  <div className="text-sm text-muted-foreground">From: {selected.from}</div>
                   <EmailContent htmlContent={selected.bodyHtml} textContent={selected.body} />
                 </div>
               </ScrollArea>
