@@ -540,7 +540,7 @@ const Index = () => {
                              <p className={`flex-1 min-w-0 truncate text-sm leading-tight ${m.unread ? "font-semibold" : ""}`}>{m.subject}</p>
                              {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
                            </div>
-                           <p className="min-w-0 truncate text-xs leading-tight text-muted-foreground">{m.from} — {m.snippet}</p>
+                           <p className="min-w-0 truncate text-xs leading-tight text-muted-foreground">{m.from} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}</p>
                          </div>
                          <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
                        </div>
