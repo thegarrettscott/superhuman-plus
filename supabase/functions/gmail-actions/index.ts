@@ -132,8 +132,19 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const messages = await Promise.all(ids.map((id: string) => getMessage(access_token, id)));
-
+      // Fetch each message (tolerate partial failures)
+      const results = await Promise.allSettled(ids.map((id: string) => getMessage(access_token, id)));
+      const messages = results
+        .filter((r) => r.status === "fulfilled")
+        .map((r: PromiseFulfilledResult<any>) => (r as PromiseFulfilledResult<any>).value);
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (messages.length === 0) {
+        console.error("gmail-actions getMessage failed for all ids");
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch Gmail messages. Please try again." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Prepare rows
       const rows = messages.map((m) => ({
