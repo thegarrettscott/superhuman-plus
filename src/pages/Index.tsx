@@ -645,7 +645,14 @@ const Index = () => {
                 <div className="space-y-2 p-4">
                   <div className="text-sm text-muted-foreground">From: {selected.from}</div>
                   {selected.bodyHtml ? (
-                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selected.bodyHtml }} />
+                    <div 
+                      className="prose prose-sm max-w-none [&_*]:!m-0 [&_*]:!p-0 [&_h1]:!text-lg [&_h2]:!text-base [&_h3]:!text-sm [&_p]:!leading-normal [&_div]:!block [&_span]:!inline [&_*]:!box-border"
+                      style={{
+                        contain: 'layout style',
+                        isolation: 'isolate'
+                      }}
+                      dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
+                    />
                   ) : (
                     <p className="leading-7 whitespace-pre-wrap">{selected.body}</p>
                   )}
