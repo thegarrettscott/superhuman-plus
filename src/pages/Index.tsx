@@ -84,6 +84,8 @@ const Index = () => {
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
   const [autoImported, setAutoImported] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isImportingSent, setIsImportingSent] = useState(false);
   const [replyDraft, setReplyDraft] = useState<{ to?: string; subject?: string; body?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmails, setTotalEmails] = useState(0);
@@ -143,19 +145,33 @@ const Index = () => {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
-      // First try to import sent emails from Gmail
-      try {
-        console.log('Importing sent emails from Gmail...');
-        const { error: importError } = await supabase.functions.invoke('gmail-actions', {
-          body: { action: 'import', mailbox: 'sent', max: 50 }
-        });
-        if (importError) {
-          console.error('Failed to import sent emails:', importError);
-        } else {
-          console.log('Successfully imported sent emails from Gmail');
+      // Check if we have any sent emails first
+      const { count: sentCount } = await supabase
+        .from('email_messages')
+        .select('*', { count: 'exact', head: true })
+        .contains('label_ids', ['SENT']);
+      
+      // If no sent emails cached, import them first
+      if (sentCount === 0) {
+        setIsImportingSent(true);
+        try {
+          console.log('Importing sent emails from Gmail...');
+          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
+            body: { action: 'import', mailbox: 'sent', max: 50 }
+          });
+          if (importError) {
+            console.error('Failed to import sent emails:', importError);
+            toast({ title: 'Failed to import sent emails', description: importError.message });
+          } else {
+            console.log('Successfully imported sent emails from Gmail');
+            toast({ title: 'Sent emails imported successfully' });
+          }
+        } catch (err) {
+          console.error('Error importing sent emails:', err);
+          toast({ title: 'Error importing sent emails' });
+        } finally {
+          setIsImportingSent(false);
         }
-      } catch (err) {
-        console.error('Error importing sent emails:', err);
       }
       
       // Filter by SENT label
@@ -617,7 +633,16 @@ const Index = () => {
         {/* List */}
         <section className="rounded-lg border bg-card overflow-hidden">
           <ScrollArea className="h-[calc(100vh-9.5rem)]">
-            {filtered.length === 0 ? (
+            {isLoading || isImportingSent ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p className="text-sm text-muted-foreground">
+                    {isImportingSent ? 'Importing sent emails...' : 'Loading emails...'}
+                  </p>
+                </div>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="p-6 text-sm text-muted-foreground">
                 No messages yet. Click "Connect Gmail" to load your inbox.
               </div>
