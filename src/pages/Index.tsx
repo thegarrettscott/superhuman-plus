@@ -38,6 +38,7 @@ type Email = {
   starred: boolean;
   labels: string[]; // e.g. ["inbox"], ["archived"], etc.
   body: string;
+  bodyHtml?: string;
 };
 
 // Demo data removed; start with an empty inbox that populates from Supabase.
@@ -74,6 +75,7 @@ const Index = () => {
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
   const [autoImported, setAutoImported] = useState(false);
+  const [replyDraft, setReplyDraft] = useState<{ to?: string; subject?: string; body?: string } | null>(null);
 
 
   async function loadEmails() {
@@ -97,6 +99,7 @@ const Index = () => {
       starred: Array.isArray(row.label_ids) && row.label_ids.includes('STARRED'),
       labels: ['inbox'],
       body: row.body_text || '',
+      bodyHtml: row.body_html || undefined,
     }));
     if (mapped.length) {
       setEmails(mapped);
@@ -160,7 +163,19 @@ const Index = () => {
     if (selected && !filtered.some((e) => e.id === selected.id)) {
       setSelectedId(filtered[0]?.id);
     }
-  }, [filtered, selected]);
+    if (selected && !selected.body) {
+      (async () => {
+        const { data, error } = await supabase.functions.invoke('gmail-actions', {
+          body: { action: 'get', id: selected.gmailId },
+        });
+        if (!error && data) {
+          setEmails((prev) => prev.map((e) => (
+            e.id === selected.id ? { ...e, body: data.body_text || e.body, bodyHtml: data.body_html || e.bodyHtml } : e
+          )));
+        }
+      })();
+    }
+  }, [filtered, selected, selectedId]);
 
   // Signature moment: subtle pointer-reactive light field in header
   const glowRef = useRef<HTMLDivElement>(null);
@@ -405,7 +420,15 @@ const Index = () => {
                   }}>
                     {selected?.unread ? 'Mark as read' : 'Mark as unread'}
                   </Button>
-                  <Button variant="secondary" onClick={() => toast({ title: "Reply", description: "Reply opened (mock)", })}>
+                  <Button variant="secondary" onClick={() => {
+                    if (!selected) return;
+                    setReplyDraft({
+                      to: selected.from,
+                      subject: selected.subject?.startsWith('Re:') ? selected.subject : `Re: ${selected.subject}`,
+                      body: `\n\nOn ${selected.date}, ${selected.from} wrote:\n> ${selected.body}`,
+                    });
+                    setComposeOpen(true);
+                  }}>
                     <Reply className="mr-2 h-4 w-4" /> Reply
                   </Button>
                   <Button variant="secondary" onClick={archiveSelected}>
@@ -416,7 +439,11 @@ const Index = () => {
               <ScrollArea className="flex-1">
                 <div className="space-y-2 p-4">
                   <div className="text-sm text-muted-foreground">From: {selected.from}</div>
-                  <p className="leading-7">{selected.body}</p>
+                  {selected.bodyHtml ? (
+                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selected.bodyHtml }} />
+                  ) : (
+                    <p className="leading-7 whitespace-pre-wrap">{selected.body}</p>
+                  )}
                 </div>
               </ScrollArea>
             </div>
@@ -429,7 +456,7 @@ const Index = () => {
       </main>
 
       {/* Compose */}
-      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} />
+      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} initialTo={replyDraft?.to} initialSubject={replyDraft?.subject} initialBody={replyDraft?.body} />
 
       {/* Command Palette */}
       <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
@@ -477,7 +504,7 @@ function SidebarItem({ label, count, active, onClick }: { label: string; count?:
   );
 }
 
-function ComposeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function ComposeDialog({ open, onOpenChange, initialTo, initialSubject, initialBody }: { open: boolean; onOpenChange: (v: boolean) => void; initialTo?: string; initialSubject?: string; initialBody?: string }) {
   const toRef = useRef<HTMLInputElement>(null);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
@@ -487,6 +514,14 @@ function ComposeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
   useEffect(() => {
     if (open) setTimeout(() => toRef.current?.focus(), 50);
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setTo(initialTo || "");
+      setSubject(initialSubject || "");
+      setBody(initialBody || "");
+    }
+  }, [open, initialTo, initialSubject, initialBody]);
 
   const handleSend = async () => {
     const toList = to.split(',').map((s) => s.trim()).filter(Boolean);

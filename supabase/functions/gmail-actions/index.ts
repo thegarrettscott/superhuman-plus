@@ -50,11 +50,44 @@ function parseAddresses(value: string): string[] | null {
 }
 
 async function getMessage(access_token: string, id: string) {
-  const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Bcc&metadataHeaders=Date`;
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Bcc&metadataHeaders=Date`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}` } });
   if (!res.ok) throw new Error(`Get message failed: ${await res.text()}`);
   const json = await res.json();
   const headers = json.payload?.headers || [];
+
+  function decodeBody(data?: string) {
+    if (!data) return "";
+    const str = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+    try {
+      // Attempt to decode as UTF-8
+      return new TextDecoder('utf-8').decode(new Uint8Array([...str].map(c => c.charCodeAt(0))));
+    } catch {
+      return str;
+    }
+  }
+
+  function collectParts(payload: any): { text: string; html: string } {
+    let text = "";
+    let html = "";
+    if (!payload) return { text, html };
+    const mime = payload.mimeType as string | undefined;
+    const bodyData = payload.body?.data as string | undefined;
+    if (mime === 'text/plain' && bodyData) text += decodeBody(bodyData);
+    if (mime === 'text/html' && bodyData) html += decodeBody(bodyData);
+    const parts = payload.parts as any[] | undefined;
+    if (Array.isArray(parts)) {
+      for (const p of parts) {
+        const res = collectParts(p);
+        text += res.text;
+        html += res.html;
+      }
+    }
+    return { text, html };
+  }
+
+  const bodies = collectParts(json.payload);
+
   return {
     id: json.id as string,
     threadId: json.threadId as string,
@@ -66,6 +99,8 @@ async function getMessage(access_token: string, id: string) {
     to: parseAddresses(headerVal(headers, "To")),
     cc: parseAddresses(headerVal(headers, "Cc")),
     bcc: parseAddresses(headerVal(headers, "Bcc")),
+    body_text: bodies.text || null,
+    body_html: bodies.html || null,
   };
 }
 
@@ -161,6 +196,8 @@ serve(async (req) => {
         bcc_addresses: m.bcc,
         internal_date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
         is_read: !(m.labelIds || []).includes("UNREAD"),
+        body_text: m.body_text || null,
+        body_html: m.body_html || null,
       }));
 
       // De-dup by gmail_message_id (delete then insert)
@@ -368,6 +405,72 @@ serve(async (req) => {
         JSON.stringify({ sent: true, id: gmail_message_id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    } else if (action === "get") {
+      const { id } = body as { id?: string };
+      if (!id) {
+        return new Response(JSON.stringify({ error: "Missing 'id' (gmail_message_id) for get action" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find gmail account
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (get) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      // Get full message
+      try {
+        const m = await getMessage(access_token, id);
+        await admin
+          .from("email_messages")
+          .update({ body_text: m.body_text || null, body_html: m.body_html || null })
+          .eq("user_id", user.id)
+          .eq("gmail_message_id", id);
+
+        return new Response(JSON.stringify({ body_text: m.body_text, body_html: m.body_html }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        console.error("gmail-actions get error:", e);
+        return new Response(JSON.stringify({ error: "Failed to fetch message body" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
