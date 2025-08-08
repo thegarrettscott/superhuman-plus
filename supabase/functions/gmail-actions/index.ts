@@ -83,8 +83,10 @@ serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    const { action } = await req.json().catch(() => ({ action: "import" }));
-
+    const body = await req.json().catch(() => ({}));
+    const action: string = body.action || "import";
+    const maxRequested = typeof body.max === "number" ? body.max : Number(body.max);
+    const max = Math.min(Number.isFinite(maxRequested) ? maxRequested : 20, 100);
     if (action === "import") {
       // Find gmail account
       const { data: account, error: accErr } = await admin
@@ -110,7 +112,7 @@ serve(async (req) => {
         .eq("id", account.id);
 
       // Fetch recent messages
-      const ids = await listRecentMessageIds(access_token, 20);
+      const ids = await listRecentMessageIds(access_token, max);
       const messages = await Promise.all(ids.map((id: string) => getMessage(access_token, id)));
 
       // Prepare rows

@@ -72,13 +72,15 @@ const [query, setQuery] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
+  const [autoImported, setAutoImported] = useState(false);
+
 
   async function loadEmails() {
     const { data, error } = await supabase
       .from('email_messages')
       .select('*')
       .order('internal_date', { ascending: false })
-      .limit(50);
+      .limit(100);
     if (error) {
       console.error('loadEmails error', error);
       return;
@@ -97,6 +99,27 @@ const [query, setQuery] = useState("");
     if (mapped.length) {
       setEmails(mapped);
       setSelectedId(mapped[0].id);
+    } else if (!autoImported) {
+      setAutoImported(true);
+      // If a Gmail account is connected, auto-import up to 100 messages
+      const { data: accRows, error: accErr } = await supabase
+        .from('email_accounts')
+        .select('id')
+        .limit(1);
+      if (accErr) {
+        console.warn('email_accounts check error', accErr);
+        return;
+      }
+      if (accRows && accRows.length > 0) {
+        toast({ title: 'Importing…', description: 'Fetching your latest 100 emails.' });
+        const { data: impData, error: impError } = await supabase.functions.invoke('gmail-actions', { body: { action: 'import', max: 100 } });
+        if (impError) {
+          toast({ title: 'Import failed', description: impError.message });
+        } else {
+          toast({ title: 'Imported', description: `${impData?.imported ?? 0} messages imported.` });
+          await loadEmails();
+        }
+      }
     }
   }
 
@@ -205,8 +228,9 @@ const [query, setQuery] = useState("");
   const toggleStar = (id: string) =>
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e)));
 
-  const handleImport = async () => {
-    const { data, error } = await supabase.functions.invoke("gmail-actions", { body: { action: "import" } });
+  const handleImport = async (max = 100) => {
+    toast({ title: 'Importing…', description: `Fetching latest ${max} emails.` });
+    const { data, error } = await supabase.functions.invoke("gmail-actions", { body: { action: "import", max } });
     if (error) {
       toast({ title: "Import failed", description: error.message });
       return;
@@ -254,7 +278,7 @@ const [query, setQuery] = useState("");
                 }
                 window.location.href = data.authUrl;
               }}>Connect Gmail</Button>
-              <Button variant="outline" onClick={handleImport}>Import Emails</Button>
+              <Button variant="outline" onClick={() => handleImport(100)}>Import Emails</Button>
               <Button onClick={() => setComposeOpen(true)}>Compose</Button>
             </div>
           </div>
