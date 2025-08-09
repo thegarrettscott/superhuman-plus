@@ -58,7 +58,7 @@ const Index = () => {
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
-  const [composeOpen, setComposeOpen] = useState(false);
+  
   const [cmdOpen, setCmdOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -481,7 +481,7 @@ const Index = () => {
       const idx = filtered.findIndex(m => m.id === selectedId);
       switch (e.key.toLowerCase()) {
         case "c":
-          setComposeOpen(true);
+          setFooterReplyOpen(true);
           break;
         case "j":
           {
@@ -969,7 +969,7 @@ const Index = () => {
               }
               window.location.href = data.authUrl;
             }}>Connect Gmail</Button>
-              <Button onClick={() => setComposeOpen(true)}>Send Email </Button>
+              <Button onClick={() => setFooterReplyOpen(true)}>Send Email </Button>
             </div>
           </div>
         </div>
@@ -1127,8 +1127,6 @@ const Index = () => {
         </article>
       </main>
 
-      {/* Compose */}
-      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} initialTo={replyDraft?.to} initialSubject={replyDraft?.subject} initialBody={replyDraft?.body} />
 
       {/* Command Palette */}
       <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
@@ -1155,7 +1153,7 @@ const Index = () => {
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Actions">
-            <CommandItem onSelect={() => setComposeOpen(true)}>
+            <CommandItem onSelect={() => setFooterReplyOpen(true)}>
               New email
               <CommandShortcut>C</CommandShortcut>
             </CommandItem>
@@ -1163,10 +1161,10 @@ const Index = () => {
         </CommandList>
       </CommandDialog>
 
-      {/* Footer Reply Compose */}
-      {footerReplyOpen && <div className="fixed bottom-0 right-4 w-[768px] bg-card border rounded-t-lg shadow-lg z-50">
+      {/* Footer Email Compose */}
+      {footerReplyOpen && <div className="fixed bottom-0 right-4 w-[576px] bg-card border rounded-t-lg shadow-lg z-50">
           <div className="flex items-center justify-between p-3 border-b">
-            <h3 className="font-semibold text-sm">Reply</h3>
+            <h3 className="font-semibold text-sm">New Email</h3>
             <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
               <X className="h-4 w-4" />
             </Button>
@@ -1174,7 +1172,7 @@ const Index = () => {
           <div className="p-3 space-y-3">
             <Input placeholder="To" value={footerTo} onChange={e => setFooterTo(e.target.value)} className="text-sm" />
             <Input placeholder="Subject" value={footerSubject} onChange={e => setFooterSubject(e.target.value)} className="text-sm" />
-            <textarea placeholder="Type your reply..." value={footerBody} onChange={e => setFooterBody(e.target.value)} className="w-full h-48 p-3 text-sm border rounded-md resize-none" />
+            <textarea placeholder="Type your message..." value={footerBody} onChange={e => setFooterBody(e.target.value)} className="w-full h-72 p-3 text-sm border rounded-md resize-none" />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
                 Cancel
