@@ -12,6 +12,10 @@ import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ComposeDialog } from "@/components/ComposeDialog";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useState as useLocalState } from "react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
@@ -62,6 +66,8 @@ const Index = () => {
   const [query, setQuery] = useState("");
   
   const [cmdOpen, setCmdOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const [mobileMenuOpen, setMobileMenuOpen] = useLocalState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [autoImported, setAutoImported] = useState(false);
@@ -923,8 +929,52 @@ const Index = () => {
     setCurrentPage(1);
     setSelectedId(undefined);
     // Cache will auto-update when mailbox changes
-  };
-  return <div className="min-h-screen bg-background">
+   };
+   
+   const SidebarContent = () => (
+     <aside className="rounded-lg border bg-card">
+       <nav className="p-2">
+         <div className="mb-3">
+           <div className="mb-1 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+             Mail ({totalUnreads} unread)
+           </div>
+         </div>
+         <SidebarItem label="Inbox" active={mailbox === "inbox"} count={emails.filter(e => e.labels.includes("inbox") && e.unread).length} onClick={() => {
+           switchMailbox("inbox");
+           if (isMobile) setMobileMenuOpen(false);
+         }} />
+         <SidebarItem label="Sent" active={mailbox === "sent"} onClick={() => {
+           switchMailbox("sent");
+           if (isMobile) setMobileMenuOpen(false);
+         }} />
+         <SidebarItem label="Starred" active={mailbox === "starred"} count={emails.filter(e => e.starred && e.unread).length} onClick={() => {
+           switchMailbox("starred");
+           if (isMobile) setMobileMenuOpen(false);
+         }} />
+         <SidebarItem label="Archived" active={mailbox === "archived"} onClick={() => {
+           switchMailbox("archived");
+           if (isMobile) setMobileMenuOpen(false);
+         }} />
+         
+         {categories.length > 0 && <>
+           <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+             Categories
+           </div>
+           {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
+             switchMailbox(category);
+             if (isMobile) setMobileMenuOpen(false);
+           }} />)}
+         </>}
+       </nav>
+       <div className="px-3 pb-3">
+         <div className="rounded-md border p-3 text-sm text-muted-foreground">
+           Shortcuts: C compose, E archive, J/K navigate, Cmd/Ctrl+K commands.
+         </div>
+       </div>
+     </aside>
+   );
+   
+   return <div className="min-h-screen bg-background">
       <header onMouseMove={onPointerMove} className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div ref={glowRef} className="relative">
           <div aria-hidden className="pointer-events-none absolute inset-0" style={{
@@ -977,37 +1027,21 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="container grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 py-4">
-        {/* Sidebar */}
-        <aside className="rounded-lg border bg-card">
-          <nav className="p-2">
-            <div className="mb-3">
-              <div className="mb-1 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Mail ({totalUnreads} unread)
-              </div>
-            </div>
-            <SidebarItem label="Inbox" active={mailbox === "inbox"} count={emails.filter(e => e.labels.includes("inbox") && e.unread).length} onClick={() => switchMailbox("inbox")} />
-            <SidebarItem label="Sent" active={mailbox === "sent"} onClick={() => switchMailbox("sent")} />
-            <SidebarItem label="Starred" active={mailbox === "starred"} count={emails.filter(e => e.starred && e.unread).length} onClick={() => switchMailbox("starred")} />
-            <SidebarItem label="Archived" active={mailbox === "archived"} onClick={() => switchMailbox("archived")} />
-            
-            {categories.length > 0 && <>
-                <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Categories
-                </div>
-                {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => switchMailbox(category)} />)}
-              </>}
-          </nav>
-          <div className="px-3 pb-3">
-            <div className="rounded-md border p-3 text-sm text-muted-foreground">
-              Shortcuts: C compose, E archive, J/K navigate, Cmd/Ctrl+K commands.
-            </div>
-          </div>
-        </aside>
+       <main className={`container py-4 ${
+         isMobile 
+           ? 'space-y-4' 
+           : 'grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4'
+       }`}>
+         {/* Desktop Sidebar */}
+         {!isMobile && <SidebarContent />}
 
-        {/* List */}
-        <section className="rounded-lg border bg-card overflow-hidden">
-          <ScrollArea className="h-[calc(100vh-9.5rem)]">
+         {/* Email List */}
+         <section className={`rounded-lg border bg-card overflow-hidden ${
+           isMobile && selected ? 'hidden' : 'block'
+         }`}>
+           <ScrollArea className={`${
+             isMobile ? 'h-[calc(100vh-8rem)]' : 'h-[calc(100vh-9.5rem)]'
+           }`}>
             {isLoading || isImportingSent ? <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
@@ -1019,10 +1053,10 @@ const Index = () => {
                 No messages yet. Click "Connect Gmail" to load your inbox.
               </div> : <div className="divide-y">
                 {filtered.map(m => <div key={m.id}>
-                     <button className={`w-full text-left px-3 py-1.5 h-16 focus:outline-none transition-colors overflow-hidden ${selected?.id === m.id ? "bg-accent" : "hover:bg-accent"}`} onClick={() => {
-                setSelectedId(m.id);
-                markAsRead(m);
-              }} aria-current={selected?.id === m.id}>
+                      <button className={`w-full text-left px-3 py-2 md:py-1.5 h-20 md:h-16 focus:outline-none transition-colors overflow-hidden ${selected?.id === m.id ? "bg-accent" : "hover:bg-accent"}`} onClick={() => {
+                 setSelectedId(m.id);
+                 markAsRead(m);
+               }} aria-current={selected?.id === m.id}>
                        <div className="flex items-center gap-2 h-full">
                           <div className="shrink-0 text-xs p-1" onClick={e => {
                     e.stopPropagation();
@@ -1031,17 +1065,21 @@ const Index = () => {
                             {m.starred ? <Star className="h-3 w-3 text-primary fill-primary" /> : <StarOff className="h-3 w-3 text-muted-foreground" />}
                           </div>
                           <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
-                            <div className="flex items-center gap-2 min-w-0">
-                               <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
-                                 {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
-                               </p>
-                               {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
-                             </div>
-                             <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
-                               {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
-                             </p>
-                         </div>
-                         <span className="ml-auto shrink-0 w-20 text-right tabular-nums text-xs text-muted-foreground">{new Date(m.date).toLocaleDateString()}</span>
+                             <div className="flex items-center gap-2 min-w-0">
+                                <p className={`flex-1 min-w-0 truncate text-sm md:text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                                  {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
+                                </p>
+                                {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                              </div>
+                              <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
+                                {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                              </p>
+                          </div>
+                          <div className="ml-auto shrink-0 flex flex-col items-end gap-1">
+                            <span className="w-16 md:w-20 text-right tabular-nums text-xs text-muted-foreground">
+                              {isMobile ? new Date(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : new Date(m.date).toLocaleDateString()}
+                            </span>
+                          </div>
                        </div>
                      </button>
                   </div>)}
@@ -1092,9 +1130,19 @@ const Index = () => {
             </div>}
         </section>
 
-        {/* Detail */}
-        <article className="rounded-lg border bg-card overflow-hidden">
-          {selected ? <div className="flex h-full flex-col">
+         {/* Email Detail */}
+         <article className={`rounded-lg border bg-card overflow-hidden ${
+           isMobile && !selected ? 'hidden' : 'block'
+         } ${isMobile ? 'col-span-full' : ''}`}>
+           {isMobile && selected && (
+             <div className="flex items-center gap-2 p-2 border-b">
+               <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)}>
+                 ← Back
+               </Button>
+               <span className="text-sm font-medium truncate">{selected.subject}</span>
+             </div>
+           )}
+           {selected ? <div className="flex h-full flex-col">
               <div className="border-b">
                 <div className="px-4 pt-4 pb-2">
                   <h2 className="text-xl font-normal leading-tight">{selected.subject}</h2>
@@ -1163,8 +1211,10 @@ const Index = () => {
         </CommandList>
       </CommandDialog>
 
-      {/* Footer Email Compose */}
-      {footerReplyOpen && <div className="fixed bottom-0 right-4 w-[576px] bg-card border rounded-t-lg shadow-lg z-50">
+      {/* Footer Email Compose - Mobile Responsive */}
+      {footerReplyOpen && <div className={`fixed bottom-0 right-4 ${
+        isMobile ? 'left-4 w-auto' : 'w-[576px]'
+      } bg-card border rounded-t-lg shadow-lg z-50`}>
           <div className="flex items-center justify-between p-3 border-b">
             <h3 className="font-semibold text-sm">New Email</h3>
             <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
@@ -1179,7 +1229,14 @@ const Index = () => {
               className="text-sm" 
             />
             <Input placeholder="Subject" value={footerSubject} onChange={e => setFooterSubject(e.target.value)} className="text-sm" />
-            <textarea placeholder="Type your message..." value={footerBody} onChange={e => setFooterBody(e.target.value)} className="w-full h-72 p-3 text-sm border rounded-md resize-none" />
+            <textarea 
+              placeholder="Type your message..." 
+              value={footerBody} 
+              onChange={e => setFooterBody(e.target.value)} 
+              className={`w-full p-3 text-sm border rounded-md resize-none ${
+                isMobile ? 'h-48' : 'h-72'
+              }`} 
+            />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
                 Cancel

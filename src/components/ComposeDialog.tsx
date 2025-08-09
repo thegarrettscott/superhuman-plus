@@ -100,7 +100,7 @@ export function ComposeDialog({
       <DialogTrigger asChild>
         <span className="sr-only">Compose</span>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New message</DialogTitle>
         </DialogHeader>
