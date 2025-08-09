@@ -930,7 +930,7 @@ const Index = () => {
         }} />
           <div className="container flex items-center gap-3 py-3">
             <Mail className="h-5 w-5 text-primary" aria-hidden />
-            <h1 className="text-lg font-semibold tracking-tight">Velocity Mail — Superhuman-style Gmail client</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Not Gmail</h1>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:block w-72">
                 <Input aria-label="Search mail" placeholder="Search (Cmd/Ctrl+K)" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => {
