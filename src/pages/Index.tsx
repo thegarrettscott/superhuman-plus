@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
+import { ComposeDialog } from "@/components/ComposeDialog";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
@@ -1207,96 +1208,5 @@ function SidebarItem({
       {typeof count === "number" && count > 0 && <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{count}</span>}
     </button>;
 }
-function ComposeDialog({
-  open,
-  onOpenChange,
-  initialTo,
-  initialSubject,
-  initialBody
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  initialTo?: string;
-  initialSubject?: string;
-  initialBody?: string;
-}) {
-  const toRef = useRef<HTMLInputElement>(null);
-  const [to, setTo] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
-  useEffect(() => {
-    if (open) setTimeout(() => toRef.current?.focus(), 50);
-  }, [open]);
-  useEffect(() => {
-    if (open) {
-      setTo(initialTo || "");
-      setSubject(initialSubject || "");
-      setBody(initialBody || "");
-    }
-  }, [open, initialTo, initialSubject, initialBody]);
-  const handleSend = async () => {
-    const toList = to.split(',').map(s => s.trim()).filter(Boolean);
-    if (toList.length === 0) {
-      toast({
-        title: 'Add recipient',
-        description: 'Please add at least one email address.'
-      });
-      return;
-    }
-    setSending(true);
-    const {
-      data,
-      error
-    } = await supabase.functions.invoke('gmail-actions', {
-      body: {
-        action: 'send',
-        to: toList,
-        subject,
-        text: body
-      }
-    });
-    setSending(false);
-    if (error) {
-      toast({
-        title: 'Send failed',
-        description: error.message
-      });
-      return;
-    }
-    toast({
-      title: 'Sent',
-      description: 'Message delivered.'
-    });
-    onOpenChange(false);
-    setTo("");
-    setSubject("");
-    setBody("");
-  };
-  return <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <span className="sr-only">Compose</span>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>New message</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Input ref={toRef} placeholder="To" aria-label="To" value={to} onChange={e => setTo(e.target.value)} />
-          <Input placeholder="Subject" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)} />
-          <div>
-            <textarea aria-label="Message body" className="min-h-[160px] w-full rounded-md border bg-background p-3 outline-none" placeholder="Say hello…" value={body} onChange={e => setBody(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={handleSend} disabled={sending}>
-            <Send className="mr-2 h-4 w-4" /> {sending ? 'Sending…' : 'Send'}
-          </Button>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={sending}>
-            <X className="mr-2 h-4 w-4" /> Discard
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>;
-}
+// ... keep existing code (ComposeDialog moved to separate component)
 export default Index;

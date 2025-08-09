@@ -25,7 +25,7 @@ export function EmailAutocomplete({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
-    setIsOpen(newValue.length > 0 && suggestions.length > 0);
+    setIsOpen(newValue.length > 0); // Always show dropdown when typing
     setHighlightedIndex(0);
   };
 
@@ -67,7 +67,7 @@ export function EmailAutocomplete({
   };
 
   const handleFocus = () => {
-    if (value.length > 0 && suggestions.length > 0) {
+    if (value.length > 0) {
       setIsOpen(true);
     }
   };
@@ -91,33 +91,39 @@ export function EmailAutocomplete({
         autoComplete="off"
       />
       
-      {isOpen && suggestions.length > 0 && (
+      {isOpen && (
         <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={suggestion.email}
-              className={cn(
-                "w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors",
-                index === highlightedIndex && "bg-accent"
-              )}
-              onClick={() => handleSuggestionClick(suggestion.email, suggestion.name)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col items-start truncate flex-1">
-                  {suggestion.name && (
-                    <span className="font-medium truncate">{suggestion.name}</span>
-                  )}
-                  <span className={`truncate ${suggestion.name ? 'text-sm text-muted-foreground' : ''}`}>
-                    {suggestion.email}
+          {suggestions.length > 0 ? (
+            suggestions.map((suggestion, index) => (
+              <button
+                key={suggestion.email}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors",
+                  index === highlightedIndex && "bg-accent"
+                )}
+                onClick={() => handleSuggestionClick(suggestion.email, suggestion.name)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col items-start truncate flex-1">
+                    {suggestion.name && (
+                      <span className="font-medium truncate">{suggestion.name}</span>
+                    )}
+                    <span className={`truncate ${suggestion.name ? 'text-sm text-muted-foreground' : ''}`}>
+                      {suggestion.email}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                    {Math.round(suggestion.frequency)}
                   </span>
                 </div>
-                <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                  {Math.round(suggestion.frequency)}
-                </span>
-              </div>
-            </button>
-          ))}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              No suggestions found
+            </div>
+          )}
         </div>
       )}
     </div>
