@@ -955,12 +955,12 @@ const Index = () => {
                 markAsRead(m);
               }} aria-current={selected?.id === m.id}>
                        <div className="flex items-center gap-2 h-full">
-                         <button className="shrink-0 text-xs p-1" aria-label={m.starred ? "Unstar" : "Star"} onClick={e => {
+                          <div className="shrink-0 text-xs p-1" onClick={e => {
                     e.stopPropagation();
                     toggleStar(m);
                   }}>
-                           {m.starred ? <Star className="h-3 w-3 text-primary fill-primary" /> : <StarOff className="h-3 w-3 text-muted-foreground" />}
-                         </button>
+                            {m.starred ? <Star className="h-3 w-3 text-primary fill-primary" /> : <StarOff className="h-3 w-3 text-muted-foreground" />}
+                          </div>
                           <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
                             <div className="flex items-center gap-2 min-w-0">
                                <p className={`flex-1 min-w-0 truncate text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
@@ -1095,6 +1095,46 @@ const Index = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      {/* Footer Reply Compose */}
+      {footerReplyOpen && (
+        <div className="fixed bottom-0 right-4 w-96 bg-card border rounded-t-lg shadow-lg z-50">
+          <div className="flex items-center justify-between p-3 border-b">
+            <h3 className="font-semibold text-sm">Reply</h3>
+            <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="p-3 space-y-3">
+            <Input 
+              placeholder="To" 
+              value={footerTo} 
+              onChange={e => setFooterTo(e.target.value)}
+              className="text-sm"
+            />
+            <Input 
+              placeholder="Subject" 
+              value={footerSubject} 
+              onChange={e => setFooterSubject(e.target.value)}
+              className="text-sm"
+            />
+            <textarea 
+              placeholder="Type your reply..."
+              value={footerBody}
+              onChange={e => setFooterBody(e.target.value)}
+              className="w-full h-32 p-2 text-sm border rounded-md resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={sendFooterReply}>
+                <Send className="mr-1 h-3 w-3" /> Send
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>;
 };
 function SidebarItem({
