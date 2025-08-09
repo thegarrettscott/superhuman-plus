@@ -902,7 +902,7 @@ const Index = () => {
               }
               window.location.href = data.authUrl;
             }}>Connect Gmail</Button>
-              <Button onClick={() => setComposeOpen(true)}>Freeform Email </Button>
+              <Button onClick={() => setComposeOpen(true)}><Button onClick={() => setComposeOpen(true)}>Send Email</Button> </Button>
             </div>
           </div>
         </div>
