@@ -108,26 +108,39 @@ const Index = () => {
       head: true
     }).eq('is_read', false).not('label_ids', 'cs', ['TRASH']);
     const totalUnreads = count || 0;
-    
-    return { categories, totalUnreads };
+    return {
+      categories,
+      totalUnreads
+    };
   }
   // Cache email lists using React Query
-  const { data: emailData, isLoading: emailsLoading, refetch: refetchEmails } = useQuery({
+  const {
+    data: emailData,
+    isLoading: emailsLoading,
+    refetch: refetchEmails
+  } = useQuery({
     queryKey: ['emails', mailbox, query, currentPage],
     queryFn: () => loadEmailsWithCache(currentPage, mailbox),
-    staleTime: 30000, // Cache for 30 seconds
-    gcTime: 300000, // Keep in cache for 5 minutes
-    refetchOnWindowFocus: false, // Prevent refetch on window focus
+    staleTime: 30000,
+    // Cache for 30 seconds
+    gcTime: 300000,
+    // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
 
   // Cache categories and unreads
-  const { data: categoriesData, refetch: refetchCategories } = useQuery({
+  const {
+    data: categoriesData,
+    refetch: refetchCategories
+  } = useQuery({
     queryKey: ['categories'],
     queryFn: loadCategoriesAndUnreads,
-    staleTime: 60000, // Cache for 1 minute
+    staleTime: 60000 // Cache for 1 minute
   });
-
-  async function loadEmailsWithCache(page = 1, targetMailbox = mailbox): Promise<{ emails: Email[], total: number }> {
+  async function loadEmailsWithCache(page = 1, targetMailbox = mailbox): Promise<{
+    emails: Email[];
+    total: number;
+  }> {
     const offset = (page - 1) * PAGE_SIZE;
 
     // Build base filter by mailbox and search
@@ -214,7 +227,6 @@ const Index = () => {
       count
     } = await countQuery;
     const total = count || 0;
-    
     const {
       data,
       error
@@ -299,8 +311,10 @@ const Index = () => {
         }
       }
     }
-    
-    return { emails: mapped, total };
+    return {
+      emails: mapped,
+      total
+    };
   }
   // Update emails when emailData changes
   useEffect(() => {
@@ -321,7 +335,6 @@ const Index = () => {
       setTotalUnreads(categoriesData.totalUnreads);
     }
   }, [categoriesData]);
-
   useEffect(() => {
     const {
       data: {
@@ -359,11 +372,11 @@ const Index = () => {
           }
         });
         // Use refetchOnWindowFocus: false and only invalidate in background
-        queryClient.invalidateQueries({ 
-          queryKey: ['emails'], 
+        queryClient.invalidateQueries({
+          queryKey: ['emails'],
           refetchType: 'none' // Don't immediately refetch, just mark as stale
         });
-        queryClient.invalidateQueries({ 
+        queryClient.invalidateQueries({
           queryKey: ['categories'],
           refetchType: 'none'
         });
@@ -390,7 +403,6 @@ const Index = () => {
       window.removeEventListener('focus', onFocus);
     };
   }, [queryClient]);
-
   const filtered = useMemo(() => {
     // Get user's email for sent filtering
     const getUserEmail = async () => {
@@ -520,7 +532,9 @@ const Index = () => {
   // Optimistic archive mutation
   const archiveMutation = useMutation({
     mutationFn: async (email: Email) => {
-      const { error } = await supabase.functions.invoke('gmail-actions', {
+      const {
+        error
+      } = await supabase.functions.invoke('gmail-actions', {
         body: {
           action: 'modify',
           id: email.gmailId,
@@ -531,13 +545,15 @@ const Index = () => {
       if (error) throw error;
       return email;
     },
-    onMutate: async (email) => {
+    onMutate: async email => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['emails'] });
-      
+      await queryClient.cancelQueries({
+        queryKey: ['emails']
+      });
+
       // Snapshot previous value
       const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
-      
+
       // Optimistically update to remove email
       queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
         if (!old) return old;
@@ -547,12 +563,13 @@ const Index = () => {
           total: old.total - 1
         };
       });
-      
+
       // Update local state immediately
       setEmails(prev => prev.filter(e => e.id !== email.id));
       setSelectedId(prev => prev === email.id ? undefined : prev);
-      
-      return { previousEmails };
+      return {
+        previousEmails
+      };
     },
     onError: (err, email, context) => {
       // Rollback on error
@@ -574,11 +591,14 @@ const Index = () => {
     },
     onSettled: () => {
       // Always refetch to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ['emails'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({
+        queryKey: ['emails']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['categories']
+      });
     }
   });
-
   const archiveSelected = () => {
     if (!selected) return;
     archiveMutation.mutate(selected);
@@ -586,7 +606,9 @@ const Index = () => {
   // Optimistic delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (email: Email) => {
-      const { error } = await supabase.functions.invoke('gmail-actions', {
+      const {
+        error
+      } = await supabase.functions.invoke('gmail-actions', {
         body: {
           action: 'modify',
           id: email.gmailId,
@@ -597,10 +619,11 @@ const Index = () => {
       if (error) throw error;
       return email;
     },
-    onMutate: async (email) => {
-      await queryClient.cancelQueries({ queryKey: ['emails'] });
+    onMutate: async email => {
+      await queryClient.cancelQueries({
+        queryKey: ['emails']
+      });
       const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
-      
       queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
         if (!old) return old;
         return {
@@ -609,11 +632,11 @@ const Index = () => {
           total: old.total - 1
         };
       });
-      
       setEmails(prev => prev.filter(e => e.id !== email.id));
       setSelectedId(prev => prev === email.id ? undefined : prev);
-      
-      return { previousEmails };
+      return {
+        previousEmails
+      };
     },
     onError: (err, email, context) => {
       if (context?.previousEmails) {
@@ -632,11 +655,14 @@ const Index = () => {
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['emails'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({
+        queryKey: ['emails']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['categories']
+      });
     }
   });
-
   const deleteSelected = () => {
     if (!selected) return;
     deleteMutation.mutate(selected);
@@ -670,10 +696,18 @@ const Index = () => {
   };
   // Optimistic star toggle mutation
   const starMutation = useMutation({
-    mutationFn: async ({ email, willBeStarred }: { email: Email; willBeStarred: boolean }) => {
+    mutationFn: async ({
+      email,
+      willBeStarred
+    }: {
+      email: Email;
+      willBeStarred: boolean;
+    }) => {
       const add = willBeStarred ? ['STARRED'] : [];
       const remove = willBeStarred ? [] : ['STARRED'];
-      const { error } = await supabase.functions.invoke('gmail-actions', {
+      const {
+        error
+      } = await supabase.functions.invoke('gmail-actions', {
         body: {
           action: 'modify',
           id: email.gmailId,
@@ -682,26 +716,38 @@ const Index = () => {
         }
       });
       if (error) throw error;
-      return { email, willBeStarred };
+      return {
+        email,
+        willBeStarred
+      };
     },
-    onMutate: async ({ email, willBeStarred }) => {
-      await queryClient.cancelQueries({ queryKey: ['emails'] });
+    onMutate: async ({
+      email,
+      willBeStarred
+    }) => {
+      await queryClient.cancelQueries({
+        queryKey: ['emails']
+      });
       const previousEmails = queryClient.getQueryData(['emails', mailbox, query, currentPage]);
-      
+
       // Optimistically update star status
       queryClient.setQueryData(['emails', mailbox, query, currentPage], (old: any) => {
         if (!old) return old;
         return {
           ...old,
-          emails: old.emails.map((e: Email) => 
-            e.id === email.id ? { ...e, starred: willBeStarred } : e
-          )
+          emails: old.emails.map((e: Email) => e.id === email.id ? {
+            ...e,
+            starred: willBeStarred
+          } : e)
         };
       });
-      
-      setEmails(prev => prev.map(e => e.id === email.id ? { ...e, starred: willBeStarred } : e));
-      
-      return { previousEmails };
+      setEmails(prev => prev.map(e => e.id === email.id ? {
+        ...e,
+        starred: willBeStarred
+      } : e));
+      return {
+        previousEmails
+      };
     },
     onError: (err, variables, context) => {
       if (context?.previousEmails) {
@@ -714,13 +760,17 @@ const Index = () => {
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['emails'] });
+      queryClient.invalidateQueries({
+        queryKey: ['emails']
+      });
     }
   });
-
   const toggleStar = (email: Email) => {
     const willBeStarred = !email.starred;
-    starMutation.mutate({ email, willBeStarred });
+    starMutation.mutate({
+      email,
+      willBeStarred
+    });
   };
   const markAsRead = async (email: Email) => {
     if (!email.unread) return; // Already read, nothing to do
@@ -752,11 +802,10 @@ const Index = () => {
         remove: ['UNREAD']
       }
     });
-     if (gmailError) {
-       console.warn('Failed to mark email as read in Gmail:', gmailError);
-     }
-   };
-
+    if (gmailError) {
+      console.warn('Failed to mark email as read in Gmail:', gmailError);
+    }
+  };
   const openReplyFooter = (email: Email) => {
     const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
     const senderEmail = emailMatch ? emailMatch[1] || emailMatch[0] : email.from;
@@ -767,37 +816,59 @@ const Index = () => {
     setFooterBody(quoted);
     setFooterReplyOpen(true);
   };
-
   const sendFooterReply = async () => {
     const toList = footerTo.split(',').map(s => s.trim()).filter(Boolean);
     if (toList.length === 0) {
-      toast({ title: 'Add recipient', description: 'Please add at least one email address.' });
+      toast({
+        title: 'Add recipient',
+        description: 'Please add at least one email address.'
+      });
       return;
     }
     try {
-      const { error } = await supabase.functions.invoke('gmail-actions', {
-        body: { action: 'send', to: toList, subject: footerSubject, text: footerBody }
+      const {
+        error
+      } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'send',
+          to: toList,
+          subject: footerSubject,
+          text: footerBody
+        }
       });
       if (error) {
-        toast({ title: 'Send failed', description: error.message });
+        toast({
+          title: 'Send failed',
+          description: error.message
+        });
         return;
       }
-      toast({ title: 'Sent', description: 'Reply delivered.' });
+      toast({
+        title: 'Sent',
+        description: 'Reply delivered.'
+      });
       setFooterReplyOpen(false);
       setFooterBody('');
     } catch (e) {
-      toast({ title: 'Send failed', description: 'Unexpected error' });
+      toast({
+        title: 'Send failed',
+        description: 'Unexpected error'
+      });
     }
   };
-
   const handleSendReply = async (to: string, subject: string, body: string) => {
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject, body })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to,
+          subject,
+          body
+        })
       });
-      
       if (response.ok) {
         toast({
           title: "Reply sent",
@@ -840,7 +911,9 @@ const Index = () => {
       description: `${data?.imported ?? 0} messages imported.`
     });
     // Invalidate cache to refresh
-    queryClient.invalidateQueries({ queryKey: ['emails'] });
+    queryClient.invalidateQueries({
+      queryKey: ['emails']
+    });
     setCurrentPage(1);
   };
   const switchMailbox = async (newMailbox: string) => {
@@ -860,17 +933,11 @@ const Index = () => {
             <h1 className="text-lg font-semibold tracking-tight">Velocity Mail — Superhuman-style Gmail client</h1>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:block w-72">
-                <Input 
-                  aria-label="Search mail" 
-                  placeholder="Search (Cmd/Ctrl+K)" 
-                  value={query} 
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && query.trim()) {
-                      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-                    }
-                  }}
-                />
+                <Input aria-label="Search mail" placeholder="Search (Cmd/Ctrl+K)" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => {
+                if (e.key === 'Enter' && query.trim()) {
+                  navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+                }
+              }} />
               </div>
               <Button variant="secondary" onClick={async () => {
               const {
@@ -902,7 +969,7 @@ const Index = () => {
               }
               window.location.href = data.authUrl;
             }}>Connect Gmail</Button>
-              <Button onClick={() => setComposeOpen(true)}>Freeform Email </Button>
+              <Button onClick={() => setComposeOpen(true)}>Send Email </Button>
             </div>
           </div>
         </div>
@@ -1097,8 +1164,7 @@ const Index = () => {
       </CommandDialog>
 
       {/* Footer Reply Compose */}
-      {footerReplyOpen && (
-        <div className="fixed bottom-0 right-4 w-[768px] bg-card border rounded-t-lg shadow-lg z-50">
+      {footerReplyOpen && <div className="fixed bottom-0 right-4 w-[768px] bg-card border rounded-t-lg shadow-lg z-50">
           <div className="flex items-center justify-between p-3 border-b">
             <h3 className="font-semibold text-sm">Reply</h3>
             <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
@@ -1106,24 +1172,9 @@ const Index = () => {
             </Button>
           </div>
           <div className="p-3 space-y-3">
-            <Input 
-              placeholder="To" 
-              value={footerTo} 
-              onChange={e => setFooterTo(e.target.value)}
-              className="text-sm"
-            />
-            <Input 
-              placeholder="Subject" 
-              value={footerSubject} 
-              onChange={e => setFooterSubject(e.target.value)}
-              className="text-sm"
-            />
-            <textarea 
-              placeholder="Type your reply..."
-              value={footerBody}
-              onChange={e => setFooterBody(e.target.value)}
-              className="w-full h-48 p-3 text-sm border rounded-md resize-none"
-            />
+            <Input placeholder="To" value={footerTo} onChange={e => setFooterTo(e.target.value)} className="text-sm" />
+            <Input placeholder="Subject" value={footerSubject} onChange={e => setFooterSubject(e.target.value)} className="text-sm" />
+            <textarea placeholder="Type your reply..." value={footerBody} onChange={e => setFooterBody(e.target.value)} className="w-full h-48 p-3 text-sm border rounded-md resize-none" />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
                 Cancel
@@ -1133,8 +1184,7 @@ const Index = () => {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        </div>}
     </div>;
 };
 function SidebarItem({
