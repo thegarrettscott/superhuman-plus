@@ -29,8 +29,10 @@ export function EmailAutocomplete({
     setHighlightedIndex(0);
   };
 
-  const handleSuggestionClick = (email: string) => {
-    onChange(email);
+  const handleSuggestionClick = (email: string, name?: string) => {
+    // Format as "Name <email>" if name exists, otherwise just email
+    const formattedValue = name ? `${name} <${email}>` : email;
+    onChange(formattedValue);
     setIsOpen(false);
     inputRef.current?.focus();
   };
@@ -54,7 +56,7 @@ export function EmailAutocomplete({
       case 'Enter':
         e.preventDefault();
         if (suggestions[highlightedIndex]) {
-          handleSuggestionClick(suggestions[highlightedIndex].email);
+          handleSuggestionClick(suggestions[highlightedIndex].email, suggestions[highlightedIndex].name);
         }
         break;
       case 'Escape':
@@ -98,12 +100,19 @@ export function EmailAutocomplete({
                 "w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors",
                 index === highlightedIndex && "bg-accent"
               )}
-              onClick={() => handleSuggestionClick(suggestion.email)}
+              onClick={() => handleSuggestionClick(suggestion.email, suggestion.name)}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
               <div className="flex items-center justify-between">
-                <span className="truncate">{suggestion.email}</span>
-                <span className="text-xs text-muted-foreground ml-2">
+                <div className="flex flex-col items-start truncate flex-1">
+                  {suggestion.name && (
+                    <span className="font-medium truncate">{suggestion.name}</span>
+                  )}
+                  <span className={`truncate ${suggestion.name ? 'text-sm text-muted-foreground' : ''}`}>
+                    {suggestion.email}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
                   {Math.round(suggestion.frequency)}
                 </span>
               </div>

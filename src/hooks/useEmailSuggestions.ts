@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 interface EmailSuggestion {
   email: string;
+  name?: string;
   frequency: number;
 }
 
@@ -36,17 +37,21 @@ export function useEmailSuggestions(searchQuery: string) {
         .from('email_messages')
         .select('from_address, to_addresses, cc_addresses');
 
-      // Extract and count email frequencies
-      const emailFrequency = new Map<string, number>();
+      // Extract and count email frequencies with names
+      const contactMap = new Map<string, { name?: string; frequency: number }>();
 
       // Process sent emails
       if (sentEmails) {
         sentEmails.forEach(email => {
           [...(email.to_addresses || []), ...(email.cc_addresses || []), ...(email.bcc_addresses || [])].forEach(addr => {
             if (addr && typeof addr === 'string') {
-              const cleanEmail = extractEmail(addr);
-              if (cleanEmail && cleanEmail.toLowerCase().includes(debouncedQuery.toLowerCase())) {
-                emailFrequency.set(cleanEmail, (emailFrequency.get(cleanEmail) || 0) + 1);
+              const { email: cleanEmail, name } = extractEmailAndName(addr);
+              if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
+                const existing = contactMap.get(cleanEmail) || { frequency: 0 };
+                contactMap.set(cleanEmail, {
+                  name: existing.name || name,
+                  frequency: existing.frequency + 1
+                });
               }
             }
           });
@@ -57,17 +62,25 @@ export function useEmailSuggestions(searchQuery: string) {
       if (receivedEmails) {
         receivedEmails.forEach(email => {
           if (email.from_address) {
-            const cleanEmail = extractEmail(email.from_address);
-            if (cleanEmail && cleanEmail.toLowerCase().includes(debouncedQuery.toLowerCase())) {
-              emailFrequency.set(cleanEmail, (emailFrequency.get(cleanEmail) || 0) + 0.5); // Weight received emails less than sent
+            const { email: cleanEmail, name } = extractEmailAndName(email.from_address);
+            if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
+              const existing = contactMap.get(cleanEmail) || { frequency: 0 };
+              contactMap.set(cleanEmail, {
+                name: existing.name || name,
+                frequency: existing.frequency + 0.5 // Weight received emails less than sent
+              });
             }
           }
           // Also check to/cc fields for emails we were part of
           [...(email.to_addresses || []), ...(email.cc_addresses || [])].forEach(addr => {
             if (addr && typeof addr === 'string') {
-              const cleanEmail = extractEmail(addr);
-              if (cleanEmail && cleanEmail.toLowerCase().includes(debouncedQuery.toLowerCase())) {
-                emailFrequency.set(cleanEmail, (emailFrequency.get(cleanEmail) || 0) + 0.3);
+              const { email: cleanEmail, name } = extractEmailAndName(addr);
+              if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
+                const existing = contactMap.get(cleanEmail) || { frequency: 0 };
+                contactMap.set(cleanEmail, {
+                  name: existing.name || name,
+                  frequency: existing.frequency + 0.3
+                });
               }
             }
           });
@@ -75,8 +88,12 @@ export function useEmailSuggestions(searchQuery: string) {
       }
 
       // Convert to array and sort by frequency
-      const suggestions: EmailSuggestion[] = Array.from(emailFrequency.entries())
-        .map(([email, frequency]) => ({ email, frequency }))
+      const suggestions: EmailSuggestion[] = Array.from(contactMap.entries())
+        .map(([email, data]) => ({ 
+          email, 
+          name: data.name, 
+          frequency: data.frequency 
+        }))
         .sort((a, b) => b.frequency - a.frequency)
         .slice(0, 10); // Limit to top 10 suggestions
 
@@ -89,20 +106,39 @@ export function useEmailSuggestions(searchQuery: string) {
   return { suggestions, isLoading };
 }
 
-// Extract email from strings like "John Doe <john@example.com>" or "john@example.com"
-function extractEmail(input: string): string | null {
-  const emailRegex = /<([^>]+)>$/;
-  const match = input.match(emailRegex);
+// Extract email and name from strings like "John Doe <john@example.com>" or "john@example.com"
+function extractEmailAndName(input: string): { email: string | null; name?: string } {
+  const emailWithNameRegex = /^(.+?)\s*<([^>]+)>$/;
+  const match = input.match(emailWithNameRegex);
   
   if (match) {
-    return match[1].trim();
+    const name = match[1].trim().replace(/^["']|["']$/g, ''); // Remove quotes
+    const email = match[2].trim();
+    return { email, name };
   }
   
   // If no angle brackets, assume the whole string is an email
   const simpleEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (simpleEmailRegex.test(input.trim())) {
-    return input.trim();
+    return { email: input.trim() };
   }
   
-  return null;
+  return { email: null };
+}
+
+// Check if email or name matches the search query
+function matchesQuery(email: string, name: string | undefined, query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+  
+  // Match email address
+  if (email.toLowerCase().includes(lowerQuery)) {
+    return true;
+  }
+  
+  // Match name if it exists
+  if (name && name.toLowerCase().includes(lowerQuery)) {
+    return true;
+  }
+  
+  return false;
 }
