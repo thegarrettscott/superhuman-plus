@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
@@ -1170,7 +1171,12 @@ const Index = () => {
             </Button>
           </div>
           <div className="p-3 space-y-3">
-            <Input placeholder="To" value={footerTo} onChange={e => setFooterTo(e.target.value)} className="text-sm" />
+            <EmailAutocomplete 
+              placeholder="To" 
+              value={footerTo} 
+              onChange={setFooterTo} 
+              className="text-sm" 
+            />
             <Input placeholder="Subject" value={footerSubject} onChange={e => setFooterSubject(e.target.value)} className="text-sm" />
             <textarea placeholder="Type your message..." value={footerBody} onChange={e => setFooterBody(e.target.value)} className="w-full h-72 p-3 text-sm border rounded-md resize-none" />
             <div className="flex justify-end gap-2">
