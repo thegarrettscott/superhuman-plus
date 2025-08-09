@@ -1098,7 +1098,7 @@ const Index = () => {
 
       {/* Footer Reply Compose */}
       {footerReplyOpen && (
-        <div className="fixed bottom-0 right-4 w-[768px] bg-card border rounded-t-lg shadow-lg z-50">
+        <div className="fixed bottom-0 right-4 w-96 bg-card border rounded-t-lg shadow-lg z-50">
           <div className="flex items-center justify-between p-3 border-b">
             <h3 className="font-semibold text-sm">Reply</h3>
             <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
@@ -1122,7 +1122,7 @@ const Index = () => {
               placeholder="Type your reply..."
               value={footerBody}
               onChange={e => setFooterBody(e.target.value)}
-              className="w-full h-48 p-3 text-sm border rounded-md resize-none"
+              className="w-full h-32 p-2 text-sm border rounded-md resize-none"
             />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setFooterReplyOpen(false)}>
