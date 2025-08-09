@@ -5,6 +5,7 @@ import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, Pagi
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { EmailContent } from "@/components/EmailContent";
+import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -902,7 +903,7 @@ const Index = () => {
               }
               window.location.href = data.authUrl;
             }}>Connect Gmail</Button>
-              <Button onClick={() => setComposeOpen(true)}><Button onClick={() => setComposeOpen(true)}>Send Email</Button> </Button>
+              <Button onClick={() => setComposeOpen(true)}>Send Email</Button> </Button>
             </div>
           </div>
         </div>
@@ -1106,10 +1107,10 @@ const Index = () => {
             </Button>
           </div>
           <div className="p-3 space-y-3">
-            <Input 
-              placeholder="To" 
+            <EmailAutocomplete 
               value={footerTo} 
-              onChange={e => setFooterTo(e.target.value)}
+              onChange={setFooterTo}
+              placeholder="To" 
               className="text-sm"
             />
             <Input 
@@ -1228,7 +1229,11 @@ function ComposeDialog({
           <DialogTitle>New message</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <Input ref={toRef} placeholder="To" aria-label="To" value={to} onChange={e => setTo(e.target.value)} />
+          <EmailAutocomplete 
+            value={to} 
+            onChange={setTo}
+            placeholder="To" 
+          />
           <Input placeholder="Subject" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)} />
           <div>
             <textarea aria-label="Message body" className="min-h-[160px] w-full rounded-md border bg-background p-3 outline-none" placeholder="Say hello…" value={body} onChange={e => setBody(e.target.value)} />
