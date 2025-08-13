@@ -24,33 +24,30 @@ export function useEmailSuggestions(searchQuery: string) {
     queryKey: ['emailSuggestions', debouncedQuery],
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 1) {
-        return [];
+        // Return recent contacts when no query
+        return await getRecentContacts();
       }
 
-      // Get email addresses from outgoing mail logs (sent emails)
-      const { data: sentEmails } = await supabase
-        .from('outgoing_mail_logs')
-        .select('to_addresses, cc_addresses, bcc_addresses');
-
-      // Get email addresses from incoming messages (received emails - from field)
-      const { data: receivedEmails } = await supabase
-        .from('email_messages')
-        .select('from_address, to_addresses, cc_addresses');
-
-      // Extract and count email frequencies with names
       const contactMap = new Map<string, { name?: string; frequency: number }>();
 
-      // Process sent emails
-      if (sentEmails) {
-        sentEmails.forEach(email => {
-          [...(email.to_addresses || []), ...(email.cc_addresses || []), ...(email.bcc_addresses || [])].forEach(addr => {
-            if (addr && typeof addr === 'string') {
-              const { email: cleanEmail, name } = extractEmailAndName(addr);
-              if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
-                const existing = contactMap.get(cleanEmail) || { frequency: 0 };
-                contactMap.set(cleanEmail, {
-                  name: existing.name || name,
-                  frequency: existing.frequency + 1
+      // First, try to get contacts from synced Gmail contacts
+      const { data: gmailContacts } = await supabase
+        .from('gmail_contacts')
+        .select('display_name, email_addresses')
+        .or(`display_name.ilike.%${debouncedQuery}%`)
+        .limit(20);
+
+      if (gmailContacts) {
+        gmailContacts.forEach(contact => {
+          const emails = Array.isArray(contact.email_addresses) ? contact.email_addresses : [];
+          emails.forEach((emailObj: any) => {
+            if (emailObj.value) {
+              const email = emailObj.value.toLowerCase();
+              const name = contact.display_name;
+              if (matchesQuery(email, name, debouncedQuery)) {
+                contactMap.set(email, {
+                  name: name || undefined,
+                  frequency: 10 // Higher weight for synced contacts
                 });
               }
             }
@@ -58,32 +55,82 @@ export function useEmailSuggestions(searchQuery: string) {
         });
       }
 
-      // Process received emails (from addresses - people who sent to us)
-      if (receivedEmails) {
-        receivedEmails.forEach(email => {
-          if (email.from_address) {
-            const { email: cleanEmail, name } = extractEmailAndName(email.from_address);
-            if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
-              const existing = contactMap.get(cleanEmail) || { frequency: 0 };
-              contactMap.set(cleanEmail, {
-                name: existing.name || name,
-                frequency: existing.frequency + 0.5 // Weight received emails less than sent
-              });
-            }
-          }
-          // Also check to/cc fields for emails we were part of
-          [...(email.to_addresses || []), ...(email.cc_addresses || [])].forEach(addr => {
-            if (addr && typeof addr === 'string') {
-              const { email: cleanEmail, name } = extractEmailAndName(addr);
-              if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
-                const existing = contactMap.get(cleanEmail) || { frequency: 0 };
-                contactMap.set(cleanEmail, {
-                  name: existing.name || name,
-                  frequency: existing.frequency + 0.3
+      // Also search email addresses that contain the query directly
+      const { data: gmailContactsEmail } = await supabase
+        .from('gmail_contacts')
+        .select('display_name, email_addresses')
+        .textSearch('email_addresses', debouncedQuery)
+        .limit(10);
+
+      if (gmailContactsEmail) {
+        gmailContactsEmail.forEach(contact => {
+          const emails = Array.isArray(contact.email_addresses) ? contact.email_addresses : [];
+          emails.forEach((emailObj: any) => {
+            if (emailObj.value && emailObj.value.toLowerCase().includes(debouncedQuery.toLowerCase())) {
+              const email = emailObj.value.toLowerCase();
+              const name = contact.display_name;
+              if (!contactMap.has(email)) {
+                contactMap.set(email, {
+                  name: name || undefined,
+                  frequency: 10
                 });
               }
             }
           });
+        });
+      }
+
+      // Supplement with email history data
+      const [sentEmails, receivedEmails] = await Promise.all([
+        supabase
+          .from('outgoing_mail_logs')
+          .select('to_addresses, cc_addresses, bcc_addresses')
+          .limit(200),
+        supabase
+          .from('email_messages')
+          .select('from_address, to_addresses, cc_addresses')
+          .limit(200)
+      ]);
+
+      // Process sent emails
+      if (sentEmails.data) {
+        sentEmails.data.forEach(email => {
+          [...(email.to_addresses || []), ...(email.cc_addresses || []), ...(email.bcc_addresses || [])].forEach(addr => {
+            if (addr && typeof addr === 'string') {
+              const { email: cleanEmail, name } = extractEmailAndName(addr);
+              if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
+                const existing = contactMap.get(cleanEmail);
+                if (!existing) {
+                  contactMap.set(cleanEmail, {
+                    name: name,
+                    frequency: 1
+                  });
+                } else {
+                  existing.frequency += 1;
+                }
+              }
+            }
+          });
+        });
+      }
+
+      // Process received emails
+      if (receivedEmails.data) {
+        receivedEmails.data.forEach(email => {
+          if (email.from_address) {
+            const { email: cleanEmail, name } = extractEmailAndName(email.from_address);
+            if (cleanEmail && matchesQuery(cleanEmail, name, debouncedQuery)) {
+              const existing = contactMap.get(cleanEmail);
+              if (!existing) {
+                contactMap.set(cleanEmail, {
+                  name: name,
+                  frequency: 0.5
+                });
+              } else {
+                existing.frequency += 0.5;
+              }
+            }
+          }
         });
       }
 
@@ -95,13 +142,41 @@ export function useEmailSuggestions(searchQuery: string) {
           frequency: data.frequency 
         }))
         .sort((a, b) => b.frequency - a.frequency)
-        .slice(0, 10); // Limit to top 10 suggestions
+        .slice(0, 10);
 
       return suggestions;
     },
-    enabled: debouncedQuery.length >= 1,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    enabled: true, // Always enabled now
+    staleTime: 5 * 60 * 1000,
   });
+
+  // Function to get recent contacts when no query
+  async function getRecentContacts(): Promise<EmailSuggestion[]> {
+    const { data: gmailContacts } = await supabase
+      .from('gmail_contacts')
+      .select('display_name, email_addresses')
+      .limit(5)
+      .order('updated_at', { ascending: false });
+
+    const suggestions: EmailSuggestion[] = [];
+    
+    if (gmailContacts) {
+      gmailContacts.forEach(contact => {
+        const emails = Array.isArray(contact.email_addresses) ? contact.email_addresses : [];
+        emails.forEach((emailObj: any) => {
+          if (emailObj.value && suggestions.length < 5) {
+            suggestions.push({
+              email: emailObj.value,
+              name: contact.display_name || undefined,
+              frequency: 1
+            });
+          }
+        });
+      });
+    }
+
+    return suggestions;
+  }
 
   return { suggestions, isLoading };
 }

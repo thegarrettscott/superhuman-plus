@@ -133,6 +133,105 @@ export type Database = {
           },
         ]
       }
+      gmail_contacts: {
+        Row: {
+          account_id: string
+          created_at: string
+          display_name: string | null
+          email_addresses: Json | null
+          gmail_contact_id: string
+          id: string
+          job_title: string | null
+          organization: string | null
+          phone_numbers: Json | null
+          photo_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          display_name?: string | null
+          email_addresses?: Json | null
+          gmail_contact_id: string
+          id?: string
+          job_title?: string | null
+          organization?: string | null
+          phone_numbers?: Json | null
+          photo_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          display_name?: string | null
+          email_addresses?: Json | null
+          gmail_contact_id?: string
+          id?: string
+          job_title?: string | null
+          organization?: string | null
+          phone_numbers?: Json | null
+          photo_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      gmail_labels: {
+        Row: {
+          account_id: string
+          color_background: string | null
+          color_text: string | null
+          created_at: string
+          gmail_label_id: string
+          id: string
+          is_visible: boolean | null
+          messages_total: number | null
+          messages_unread: number | null
+          name: string
+          threads_total: number | null
+          threads_unread: number | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          color_background?: string | null
+          color_text?: string | null
+          created_at?: string
+          gmail_label_id: string
+          id?: string
+          is_visible?: boolean | null
+          messages_total?: number | null
+          messages_unread?: number | null
+          name: string
+          threads_total?: number | null
+          threads_unread?: number | null
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          color_background?: string | null
+          color_text?: string | null
+          created_at?: string
+          gmail_label_id?: string
+          id?: string
+          is_visible?: boolean | null
+          messages_total?: number | null
+          messages_unread?: number | null
+          name?: string
+          threads_total?: number | null
+          threads_unread?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       outgoing_mail_logs: {
         Row: {
           account_id: string
@@ -188,6 +287,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sync_status: {
+        Row: {
+          account_id: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          last_sync_token: string | null
+          started_at: string | null
+          status: string
+          sync_type: string
+          synced_items: number | null
+          total_items: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_sync_token?: string | null
+          started_at?: string | null
+          status?: string
+          sync_type: string
+          synced_items?: number | null
+          total_items?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_sync_token?: string | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+          synced_items?: number | null
+          total_items?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

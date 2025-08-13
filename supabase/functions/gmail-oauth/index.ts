@@ -79,8 +79,9 @@ serve(async (req) => {
 
       const scopes = [
         "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.email", 
         "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/contacts.readonly",
         "openid",
       ].join(" ");
 
@@ -169,17 +170,53 @@ const expectedSig = await hmacSign(payloadStr);
         updated_at: new Date().toISOString(),
       } as Record<string, unknown>;
 
+      let accountId: string;
       if (existing?.id) {
         const { error: updErr } = await admin
           .from("email_accounts")
           .update(upsertData)
           .eq("id", existing.id);
         if (updErr) console.error("Update email_accounts error:", updErr);
+        accountId = existing.id;
       } else {
-        const { error: insErr } = await admin
+        const { data: newAccount, error: insErr } = await admin
           .from("email_accounts")
-          .insert({ ...upsertData, created_at: new Date().toISOString() });
-        if (insErr) console.error("Insert email_accounts error:", insErr);
+          .insert({ ...upsertData, created_at: new Date().toISOString() })
+          .select('id')
+          .single();
+        if (insErr) {
+          console.error("Insert email_accounts error:", insErr);
+          accountId = '';
+        } else {
+          accountId = newAccount.id;
+        }
+      }
+
+      // Trigger directory sync for new or updated accounts
+      if (accountId && access_token) {
+        console.log('Triggering directory sync...');
+        try {
+          const syncResponse = await fetch(`${SUPABASE_URL}/functions/v1/directory-sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              userId: payload.user_id,
+              accountId: accountId,
+              accessToken: access_token
+            }),
+          });
+          
+          if (!syncResponse.ok) {
+            console.error('Failed to trigger directory sync:', await syncResponse.text());
+          } else {
+            console.log('Directory sync triggered successfully');
+          }
+        } catch (syncError) {
+          console.error('Error triggering directory sync:', syncError);
+        }
       }
 
       // Redirect back to app

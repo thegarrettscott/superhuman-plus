@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import SyncProgress from "@/components/SyncProgress";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -86,6 +87,8 @@ const Index = () => {
   const [footerTo, setFooterTo] = useState("");
   const [footerSubject, setFooterSubject] = useState("");
   const [footerBody, setFooterBody] = useState("");
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [currentAccount, setCurrentAccount] = useState<string | null>(null);
   const PAGE_SIZE = 50;
   async function loadCategoriesAndUnreads() {
     // Load all unique categories/labels from user's emails
@@ -349,14 +352,44 @@ const Index = () => {
         subscription
       }
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) navigate('/auth');
+      if (!session) {
+        navigate('/auth');
+      } else {
+        setCurrentUser(session.user.id);
+        // Fetch user's email account ID
+        supabase.from('email_accounts')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .limit(1)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setCurrentAccount(data.id);
+            }
+          });
+      }
     });
     supabase.auth.getSession().then(({
       data: {
         session
       }
     }) => {
-      if (!session) navigate('/auth');
+      if (!session) {
+        navigate('/auth');
+      } else {
+        setCurrentUser(session.user.id);
+        // Fetch user's email account ID
+        supabase.from('email_accounts')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .limit(1)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setCurrentAccount(data.id);
+            }
+          });
+      }
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1032,6 +1065,18 @@ const Index = () => {
            ? 'space-y-4' 
            : 'grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4'
        }`}>
+         {/* Directory Sync Progress */}
+         <div className={isMobile ? '' : 'col-span-full'}>
+           <SyncProgress 
+             userId={currentUser} 
+             accountId={currentAccount} 
+             onSyncComplete={() => {
+               // Refresh emails and categories after sync
+               queryClient.invalidateQueries({ queryKey: ['emails'] });
+               queryClient.invalidateQueries({ queryKey: ['categories'] });
+             }}
+           />
+         </div>
          {/* Desktop Sidebar */}
          {!isMobile && <SidebarContent />}
 
