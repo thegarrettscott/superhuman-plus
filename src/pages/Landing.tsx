@@ -25,23 +25,23 @@ const setSeo = (title: string, description: string) => {
 export default function Landing() {
   useEffect(() => {
     setSeo(
-      "Freeform Email — Fast Gmail Client",
-      "Landing page for Freeform Email: keyboard-first Gmail experience with OAuth integration."
+      "Velocity Mail — Superhuman-style Gmail Client", 
+      "Connect Gmail and fly through email with speed, keyboard-first controls, and a refined interface."
     );
     const ld = {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "Freeform Email",
+      "@type": "SoftwareApplication", 
+      name: "Velocity Mail",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
-      description: "Keyboard-first Gmail client for speed-focused triage",
+      description: "Superhuman-style Gmail client with blazing-fast shortcuts and focused triage workflow",
       url: window.location.origin,
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" }
     };
     let script = document.getElementById("ld-software-app") as HTMLScriptElement | null;
     if (!script) {
       script = document.createElement("script");
-      script.id = "ld-software-app";
+      script.id = "ld-software-app"; 
       script.type = "application/ld+json";
       document.head.appendChild(script);
     }
@@ -50,65 +50,77 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex items-center gap-3 py-4">
-          <Mail className="h-5 w-5 text-primary" aria-hidden />
-          <span className="text-lg font-semibold tracking-tight">Freeform Email</span>
+          <Mail className="h-6 w-6 text-primary" aria-hidden />
+          <span className="text-xl font-bold tracking-tight">Velocity Mail</span>
           <nav className="ml-auto flex items-center gap-2">
-            <Link to="/auth"><Button variant="secondary">Sign in</Button></Link>
+            <Link to="/auth">
+              <Button variant="outline" size="sm">Sign in</Button>
+            </Link>
           </nav>
         </div>
       </header>
 
-      <main className="container grid place-items-center py-16">
-        <section className="max-w-2xl text-center space-y-6">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Superhuman‑style speed for your Gmail</h1>
-          <p className="text-muted-foreground">
-            Keyboard-first triage, elegant UI, and seamless Google OAuth. Connect your account and fly through email.
+      <main className="container">
+        <section className="py-20 text-center space-y-8">
+          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
+            Superhuman‑style speed<br />for your Gmail
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Keyboard-first triage, elegant interface, and seamless Google OAuth. Connect your account and fly through email with blazing speed.
           </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link to="/auth"><Button size="lg">Get started</Button></Link>
-            <a href="#features" className="text-sm underline">Learn more</a>
+          <div className="flex items-center justify-center gap-4 pt-4">
+            <Link to="/auth">
+              <Button size="lg" className="px-8 py-3 text-lg font-semibold">
+                Get started
+              </Button>
+            </Link>
+            <Button variant="outline" size="lg" className="px-8 py-3 text-lg" asChild>
+              <a href="#features">Learn more</a>
+            </Button>
           </div>
         </section>
 
-        <section id="features" className="mt-16 grid w-full gap-6 md:grid-cols-3">
-          <article className="rounded-lg border bg-card p-6 shadow-sm transition-transform duration-200 hover:scale-105">
-            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-              <Zap className="h-5 w-5 text-primary" aria-hidden />
+        <section id="features" className="py-16 grid gap-8 md:grid-cols-3">
+          <article className="group rounded-2xl border bg-card/50 p-8 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:bg-card">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+              <Zap className="h-6 w-6 text-primary" aria-hidden />
             </div>
-            <h3 className="font-semibold mb-1">Keyboard-first</h3>
-            <p className="text-sm text-muted-foreground">J/K to navigate, C to compose, E to archive, and more.</p>
+            <h3 className="text-xl font-semibold mb-3">Keyboard-first</h3>
+            <p className="text-muted-foreground">Navigate with J/K, compose with C, archive with E. Every action has a shortcut.</p>
           </article>
-          <article className="rounded-lg border bg-card p-6 shadow-sm transition-transform duration-200 hover:scale-105">
-            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-              <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />
+          
+          <article className="group rounded-2xl border bg-card/50 p-8 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:bg-card">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+              <ShieldCheck className="h-6 w-6 text-primary" aria-hidden />
             </div>
-            <h3 className="font-semibold mb-1">Google OAuth</h3>
-            <p className="text-sm text-muted-foreground">Securely connect your Gmail and import recent messages.</p>
+            <h3 className="text-xl font-semibold mb-3">Google OAuth</h3>
+            <p className="text-muted-foreground">Securely connect your Gmail account and import your recent messages instantly.</p>
           </article>
-          <article className="rounded-lg border bg-card p-6 shadow-sm transition-transform duration-200 hover:scale-105">
-            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-5 w-5 text-primary" aria-hidden />
+          
+          <article className="group rounded-2xl border bg-card/50 p-8 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:bg-card">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+              <Sparkles className="h-6 w-6 text-primary" aria-hidden />
             </div>
-            <h3 className="font-semibold mb-1">Beautiful UI</h3>
-            <p className="text-sm text-muted-foreground">Clean, responsive design with tasteful motion.</p>
+            <h3 className="text-xl font-semibold mb-3">Beautiful UI</h3>
+            <p className="text-muted-foreground">Clean, responsive design with smooth animations and thoughtful interactions.</p>
           </article>
         </section>
 
-        <section aria-labelledby="testimonials" className="mt-10 w-full">
-          <h2 id="testimonials" className="sr-only">What users say</h2>
-          <div className="rounded-lg border bg-card p-6 md:p-8">
-            <p className="text-sm md:text-base text-muted-foreground">
-              “Freeform Email lets me clear my inbox twice as fast. The keyboard shortcuts are spot on.”
-            </p>
-            <p className="mt-3 text-xs md:text-sm">— Beta user</p>
+        <section className="py-16">
+          <div className="rounded-3xl border bg-gradient-to-br from-card/80 to-card p-8 md:p-12 text-center shadow-lg">
+            <blockquote className="text-lg md:text-xl text-muted-foreground italic">
+              "Velocity Mail lets me clear my inbox twice as fast. The keyboard shortcuts are perfect."
+            </blockquote>
+            <p className="mt-4 text-sm font-medium">— Early adopter</p>
           </div>
         </section>
       </main>
-      <footer className="border-t bg-background/70">
-        <div className="container py-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Freeform Email · <Link to="/search" className="underline">Search</Link>
+      
+      <footer className="border-t bg-background/95">
+        <div className="container py-8 text-center text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} Velocity Mail · Built for speed</p>
         </div>
       </footer>
     </div>
