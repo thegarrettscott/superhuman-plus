@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ComposeDialog } from "@/components/ComposeDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSwipeGestures } from "@/hooks/useSwipeGestures";
 import { useState as useLocalState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -92,6 +93,7 @@ const Index = () => {
   const [showSignatureSettings, setShowSignatureSettings] = useState(false);
   const [signature, setSignature] = useState('');
   const [newSignature, setNewSignature] = useState('');
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentAccount, setCurrentAccount] = useState<string | null>(null);
   const PAGE_SIZE = 50;
@@ -527,6 +529,36 @@ const Index = () => {
     return base.filter(e => e.subject.toLowerCase().includes(q) || e.from.toLowerCase().includes(q) || e.snippet.toLowerCase().includes(q));
   }, [emails, mailbox, query]);
   const selected = useMemo(() => filtered.find(e => e.id === selectedId) ?? filtered[0], [filtered, selectedId]);
+  
+  // Mobile navigation functions
+  const handleEmailSelect = (emailId: string) => {
+    setSelectedId(emailId);
+    if (isMobile) {
+      setMobileView('detail');
+    }
+  };
+
+  const handleMobileBack = () => {
+    if (isMobile) {
+      setMobileView('list');
+      setSelectedId(undefined);
+    }
+  };
+
+  // Swipe gesture support for mobile
+  const swipeHandlers = useSwipeGestures({
+    onSwipeRight: () => {
+      if (isMobile && mobileView === 'detail') {
+        handleMobileBack();
+      }
+    },
+    onSwipeLeft: () => {
+      if (isMobile && mobileView === 'list' && selected) {
+        handleEmailSelect(selected.id);
+      }
+    }
+  });
+
   useEffect(() => {
     if (selected && !filtered.some(e => e.id === selected.id)) {
       setSelectedId(filtered[0]?.id);
@@ -1382,7 +1414,17 @@ const Index = () => {
       </main>
 
 
-      {/* Command Palette */}
+      {/* Mobile Sheet Navigation */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-72">
+          <div className="p-4">
+            <h2 className="text-lg font-semibold mb-4">Navigation</h2>
+            <SidebarContent />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop Command Palette */}
       <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
         <CommandInput placeholder="Type a command or search…" />
         <CommandList>
