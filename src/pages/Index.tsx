@@ -8,7 +8,7 @@ import { EmailContent } from "@/components/EmailContent";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Archive, Mail, Reply, Send, Star, StarOff, X } from "lucide-react";
+import { Archive, Mail, Reply, Send, Star, StarOff, X, Filter, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ComposeDialog } from "@/components/ComposeDialog";
@@ -34,6 +34,8 @@ type Email = {
   labels: string[]; // e.g. ["inbox"], ["archived"], etc.
   body: string;
   bodyHtml?: string;
+  filterResults?: { filterId: string; filterName: string; tags: string[] }[];
+  tags?: string[];
 };
 
 // Demo data removed; start with an empty inbox that populates from Supabase.
@@ -84,6 +86,10 @@ const Index = () => {
   const [totalEmails, setTotalEmails] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [totalUnreads, setTotalUnreads] = useState(0);
+  const [filters, setFilters] = useState<any[]>([]);
+  const [filterCategories, setFilterCategories] = useState<{[key: string]: number}>({});
+  const [showCreateFilter, setShowCreateFilter] = useState(false);
+  const [createFilterEmail, setCreateFilterEmail] = useState<Email | null>(null);
   const [footerReplyOpen, setFooterReplyOpen] = useState(false);
   const [footerTo, setFooterTo] = useState("");
   const [footerSubject, setFooterSubject] = useState("");
@@ -126,9 +132,39 @@ const Index = () => {
       head: true
     }).eq('is_read', false).not('label_ids', 'cs', ['TRASH']);
     const totalUnreads = count || 0;
+
+    // Load active filters and calculate filter-based categories
+    const { data: filtersData } = await supabase
+      .from('email_filters')
+      .select('*')
+      .eq('is_active', true)
+      .order('priority', { ascending: false });
+    
+    const filterCategories: {[key: string]: number} = {};
+    if (filtersData) {
+      // Calculate email counts for each filter
+      for (const filter of filtersData) {
+        const actions = filter.actions as any;
+        const tags = actions?.tags || [];
+        const { count } = await supabase
+          .from('email_message_tags')
+          .select('message_id', { count: 'exact', head: true })
+          .in('tag_id', 
+            await supabase
+              .from('email_tags')
+              .select('id')
+              .in('name', tags)
+              .then(({ data }) => data?.map(t => t.id) || [])
+          );
+        filterCategories[filter.name] = count || 0;
+      }
+    }
+
     return {
       categories,
-      totalUnreads
+      totalUnreads,
+      filters: filtersData || [],
+      filterCategories
     };
   }
   // Cache email lists using React Query
@@ -315,6 +351,34 @@ const Index = () => {
       bodyHtml: row.body_html || undefined
     }));
 
+    // Load filter results and tags for each email
+    await Promise.all(mapped.map(async (email) => {
+      // Get tags for this email
+      const { data: messageTags } = await supabase
+        .from('email_message_tags')
+        .select(`
+          email_tags (id, name, color)
+        `)
+        .eq('message_id', email.id);
+
+      email.tags = messageTags?.map((mt: any) => mt.email_tags.name) || [];
+
+      // Get filter results (simplified - could be enhanced to track which filters applied)
+      email.filterResults = filters
+        .filter(f => {
+          const actions = f.actions as any;
+          return f.is_active && actions?.tags?.some((tag: string) => email.tags?.includes(tag));
+        })
+        .map(f => {
+          const actions = f.actions as any;
+          return {
+            filterId: f.id,
+            filterName: f.name,
+            tags: actions?.tags || []
+          };
+        });
+    }));
+
     // Proactive bodies
     mapped.forEach(async email => {
       if (!email.body) {
@@ -399,6 +463,8 @@ const Index = () => {
     if (categoriesData) {
       setCategories(categoriesData.categories);
       setTotalUnreads(categoriesData.totalUnreads);
+      setFilters(categoriesData.filters);
+      setFilterCategories(categoriesData.filterCategories);
     }
   }, [categoriesData]);
   useEffect(() => {
@@ -1123,6 +1189,27 @@ const Index = () => {
       });
     }
   };
+
+  const handleCreateFilterFromEmail = (email: Email) => {
+    setCreateFilterEmail(email);
+    setShowCreateFilter(true);
+  };
+
+  const processEmailWithFilters = async (emailId: string) => {
+    try {
+      await supabase.functions.invoke('email-filter', {
+        body: {
+          action: 'process-email',
+          emailId
+        }
+      });
+      
+      // Refresh email data to show new tags
+      queryClient.invalidateQueries({ queryKey: ['emails'] });
+    } catch (error) {
+      console.error('Failed to process email with filters:', error);
+    }
+  };
   const switchMailbox = async (newMailbox: string) => {
     setMailbox(newMailbox);
     setCurrentPage(1);
@@ -1159,23 +1246,53 @@ const Index = () => {
             if (isMobile) setMobileMenuOpen(false);
           }} />
          
-          <div className="mt-4 mb-2 px-3 flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Categories
-            </span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-6 px-2 text-xs" 
-              onClick={() => setShowCreateInbox(true)}
-            >
-              +
-            </Button>
-          </div>
-          {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
-            switchMailbox(category);
-            if (isMobile) setMobileMenuOpen(false);
-          }} />)}
+           <div className="mt-4 mb-2 px-3 flex items-center justify-between">
+             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+               Categories
+             </span>
+             <Button 
+               variant="ghost" 
+               size="sm" 
+               className="h-6 px-2 text-xs" 
+               onClick={() => setShowCreateInbox(true)}
+             >
+               +
+             </Button>
+           </div>
+           {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
+             switchMailbox(category);
+             if (isMobile) setMobileMenuOpen(false);
+           }} />)}
+
+           {filters.length > 0 && (
+             <>
+               <div className="mt-4 mb-2 px-3 flex items-center justify-between">
+                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                   Smart Filters
+                 </span>
+                 <Button 
+                   variant="ghost" 
+                   size="sm" 
+                   className="h-6 px-2 text-xs" 
+                   onClick={() => navigate('/filters')}
+                 >
+                   <Filter className="h-3 w-3" />
+                 </Button>
+               </div>
+               {filters.map(filter => (
+                 <SidebarItem 
+                   key={filter.id} 
+                   label={filter.name} 
+                   active={mailbox === `filter:${filter.id}`} 
+                   count={filterCategories[filter.name] || 0}
+                   onClick={() => {
+                     switchMailbox(`filter:${filter.id}`);
+                     if (isMobile) setMobileMenuOpen(false);
+                   }} 
+                 />
+               ))}
+             </>
+           )}
        </nav>
         <div className="px-3 pb-3">
           <div className="rounded-md border p-3 text-sm text-muted-foreground space-y-2">
@@ -1310,17 +1427,42 @@ const Index = () => {
                   }}>
                             {m.starred ? <Star className="h-3 w-3 text-primary fill-primary" /> : <StarOff className="h-3 w-3 text-muted-foreground" />}
                           </div>
-                          <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
-                             <div className="flex items-center gap-2 min-w-0">
-                                <p className={`flex-1 min-w-0 truncate text-sm md:text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
-                                  {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
-                                </p>
-                                {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
-                              </div>
-                              <p className="min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden mt-1">
-                                {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
-                              </p>
-                          </div>
+                           <div className="flex min-w-0 flex-col flex-1 justify-center overflow-hidden">
+                              <div className="flex items-center gap-2 min-w-0">
+                                 <p className={`flex-1 min-w-0 truncate text-sm md:text-sm leading-none ${m.unread ? "font-semibold" : "font-normal"}`}>
+                                   {m.subject.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() || '(no subject)'}
+                                 </p>
+                                 {m.filterResults && m.filterResults.length > 0 && (
+                                   <div className="flex gap-1">
+                                     {m.filterResults.slice(0, 2).map((result) => (
+                                       <Badge key={result.filterId} variant="secondary" className="text-xs px-1 py-0 h-4">
+                                         {result.filterName}
+                                       </Badge>
+                                     ))}
+                                     {m.filterResults.length > 2 && (
+                                       <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                         +{m.filterResults.length - 2}
+                                       </Badge>
+                                     )}
+                                   </div>
+                                 )}
+                                 {m.unread && <div className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                               </div>
+                               <div className="flex items-center gap-2 min-w-0 mt-1">
+                                 <p className="flex-1 min-w-0 truncate text-xs leading-none text-muted-foreground overflow-hidden">
+                                   {m.from.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()} — {m.snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}
+                                 </p>
+                                 {m.tags && m.tags.length > 0 && (
+                                   <div className="flex gap-1">
+                                     {m.tags.slice(0, 3).map((tag) => (
+                                       <Badge key={tag} variant="outline" className="text-xs px-1 py-0 h-4">
+                                         {tag}
+                                       </Badge>
+                                     ))}
+                                   </div>
+                                 )}
+                               </div>
+                           </div>
                           <div className="ml-auto shrink-0 flex flex-col items-end gap-1">
                             <span className="w-16 md:w-20 text-right tabular-nums text-xs text-muted-foreground">
                               {isMobile ? new Date(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : new Date(m.date).toLocaleDateString()}
@@ -1397,26 +1539,52 @@ const Index = () => {
                   <div className="text-sm text-muted-foreground">
                     From: {selected.from}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={async () => {
-                  if (selected) await toggleReadFor(selected);
-                }}>
-                      {selected?.unread ? 'Mark as read' : 'Mark as unread'}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => selected && openReplyFooter(selected)}>
-                      <Reply className="mr-1 h-3 w-3" /> Reply
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
-                      <Archive className="mr-1 h-3 w-3" /> Archive
-                    </Button>
-                  </div>
+                   <div className="flex items-center gap-1">
+                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={async () => {
+                   if (selected) await toggleReadFor(selected);
+                 }}>
+                       {selected?.unread ? 'Mark as read' : 'Mark as unread'}
+                     </Button>
+                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => selected && handleCreateFilterFromEmail(selected)}>
+                       <Plus className="mr-1 h-3 w-3" /> Filter
+                     </Button>
+                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => selected && openReplyFooter(selected)}>
+                       <Reply className="mr-1 h-3 w-3" /> Reply
+                     </Button>
+                     <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={archiveSelected}>
+                       <Archive className="mr-1 h-3 w-3" /> Archive
+                     </Button>
+                   </div>
                 </div>
               </div>
-              <ScrollArea className="flex-1">
-                <div className="space-y-2 p-4">
-                  <EmailContent email={selected} />
-                </div>
-              </ScrollArea>
+               <ScrollArea className="flex-1">
+                 <div className="space-y-2 p-4">
+                   {selected.filterResults && selected.filterResults.length > 0 && (
+                     <div className="bg-muted/30 rounded-lg p-3 mb-4">
+                       <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                         <Filter className="h-4 w-4" />
+                         Filter Results
+                       </h4>
+                       <div className="space-y-2">
+                         {selected.filterResults.map((result) => (
+                           <div key={result.filterId} className="flex items-center gap-2 text-sm">
+                             <Badge variant="secondary">{result.filterName}</Badge>
+                             <span className="text-muted-foreground">applied tags:</span>
+                             <div className="flex gap-1">
+                               {result.tags.map((tag) => (
+                                 <Badge key={tag} variant="outline" className="text-xs">
+                                   {tag}
+                                 </Badge>
+                               ))}
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
+                   <EmailContent email={selected} />
+                 </div>
+               </ScrollArea>
             </div> : <div className="grid h-full place-items-center p-6 text-muted-foreground">
               Select a conversation to view
             </div>}
@@ -1569,6 +1737,39 @@ const Index = () => {
             </div>
           </div>
         </div>}
+
+        {/* Create Filter Dialog */}
+        <Dialog open={showCreateFilter} onOpenChange={setShowCreateFilter}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Filter from Email</DialogTitle>
+            </DialogHeader>
+            {createFilterEmail && (
+              <div className="space-y-4">
+                <div className="p-3 bg-muted rounded-md">
+                  <p className="text-sm font-medium">{createFilterEmail.subject}</p>
+                  <p className="text-xs text-muted-foreground">From: {createFilterEmail.from}</p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  This will create a filter that matches emails similar to this one.
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateFilter(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                if (createFilterEmail) {
+                  navigate(`/filters?from=${encodeURIComponent(createFilterEmail.from)}&subject=${encodeURIComponent(createFilterEmail.subject)}`);
+                }
+                setShowCreateFilter(false);
+              }}>
+                Create Filter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>;
 };
 function SidebarItem({
