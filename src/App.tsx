@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Search from "./pages/Search";
+import EmailFilters from "./pages/EmailFilters";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/mail" element={<Index />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/filters" element={<EmailFilters />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

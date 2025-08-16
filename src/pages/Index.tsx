@@ -1182,17 +1182,27 @@ const Index = () => {
             <div>
               Shortcuts: C compose, E archive, J/K navigate, Cmd/Ctrl+K commands.
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs" 
-              onClick={() => {
-                setNewSignature(signature);
-                setShowSignatureSettings(true);
-              }}
-            >
-              Email Signature
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs" 
+                onClick={() => {
+                  setNewSignature(signature);
+                  setShowSignatureSettings(true);
+                }}
+              >
+                Email Signature
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs" 
+                onClick={() => navigate('/filters')}
+              >
+                Filters
+              </Button>
+            </div>
           </div>
         </div>
      </aside>
@@ -1455,6 +1465,9 @@ const Index = () => {
             <CommandItem onSelect={() => setFooterReplyOpen(true)}>
               New email
               <CommandShortcut>C</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => navigate('/filters')}>
+              Email Filters
             </CommandItem>
           </CommandGroup>
         </CommandList>
