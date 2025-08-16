@@ -679,6 +679,44 @@ function FilterDialog({
               >
                 {generatingFilter ? "Generating..." : "Generate Filter with AI"}
               </Button>
+              <div className="pt-2">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    const conditions = {
+                      keywords: [
+                        "quick call","demo","free trial","case study","ROI","increase your","boost your",
+                        "grow your","scale your","meeting this week","schedule a call","calendly",
+                        "15 minutes","introductory","touch base","circle back","leads","lead generation",
+                        "pipeline","outreach","prospecting","SEO services","marketing services","appointment setting",
+                        "B2B","SaaS","synergy","partnership opportunity","special offer","exclusive","limited time"
+                      ],
+                      subject_contains: "demo OR quick call OR meeting OR opportunity OR case study OR trial",
+                      body_contains: "schedule OR calendly OR quick chat OR book a time OR call",
+                      has_attachments: false
+                    } as const;
+                    const actions = {
+                      add_labels: ["CATEGORY_PROMOTIONS"],
+                      mark_as_read: true,
+                      mark_as_important: false
+                    } as const;
+                    setFormData(prev => ({
+                      ...prev,
+                      name: "Cold Sales Outreach (Auto-hide)",
+                      description: "Auto-hides unsolicited cold sales outreach using common keywords. Marks as read and moves to Promotions.",
+                      conditions: JSON.stringify(conditions, null, 2),
+                      actions: JSON.stringify(actions, null, 2),
+                      is_active: true,
+                      priority: prev.priority || 10
+                    }));
+                    toast({ title: "Loaded 'Cold Sales' template" });
+                  }}
+                  className="w-full"
+                >
+                  Load Cold Sales Template
+                </Button>
+              </div>
             </div>
           )}
           <div>
