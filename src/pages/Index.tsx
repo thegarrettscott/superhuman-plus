@@ -1300,13 +1300,63 @@ const Index = () => {
             <Mail className="h-5 w-5 text-primary" aria-hidden />
             <h1 className="text-lg font-semibold tracking-tight">Not Gmail</h1>
             <div className="ml-auto flex items-center gap-2">
-              <div className="hidden md:block w-72">
+               <div className="hidden md:block w-72">
                 <Input aria-label="Search mail" placeholder="Search (Cmd/Ctrl+K)" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => {
                 if (e.key === 'Enter' && query.trim()) {
                   navigate(`/search?q=${encodeURIComponent(query.trim())}`);
                 }
               }} />
               </div>
+              {mailbox === "inbox" && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                      toast({
+                        title: "Login required",
+                        description: "Please log in to process emails."
+                      });
+                      return;
+                    }
+
+                    try {
+                      toast({
+                        title: "Processing emails",
+                        description: "Applying filters to recent emails..."
+                      });
+
+                      const { data, error } = await supabase.functions.invoke("process-filters", {
+                        headers: {
+                          Authorization: `Bearer ${session.access_token}`
+                        }
+                      });
+
+                      if (error) throw error;
+
+                      toast({
+                        title: "Processing complete",
+                        description: data.message || `Processed ${data.processedCount} emails`
+                      });
+
+                      // Refresh emails and categories to show updated tags
+                      queryClient.invalidateQueries({ queryKey: ['emails'] });
+                      queryClient.invalidateQueries({ queryKey: ['categories'] });
+                      refetchEmails();
+                    } catch (error: any) {
+                      console.error('Error processing filters:', error);
+                      toast({
+                        title: "Processing failed",
+                        description: error.message || "Failed to process emails with filters"
+                      });
+                    }
+                  }}
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Process Recent Emails
+                </Button>
+              )}
               <Button variant="secondary" onClick={async () => {
               const {
                 data: {

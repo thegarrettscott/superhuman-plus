@@ -178,6 +178,35 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
         return;
       }
 
+      // First, create the tags if they don't exist
+      if (tags.length > 0) {
+        for (const tagName of tags) {
+          // Check if tag already exists
+          const { data: existingTag } = await supabase
+            .from('email_tags')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('name', tagName)
+            .single();
+
+          // Create tag if it doesn't exist
+          if (!existingTag) {
+            const { error: tagError } = await supabase
+              .from('email_tags')
+              .insert({
+                user_id: user.id,
+                name: tagName,
+                color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)` // Random color
+              });
+
+            if (tagError) {
+              console.error('Error creating tag:', tagError);
+            }
+          }
+        }
+      }
+
+      // Then create the filter
       const { error } = await supabase
         .from('email_filters')
         .insert({
