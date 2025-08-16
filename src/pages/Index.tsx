@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { EmailContent } from "@/components/EmailContent";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -87,6 +87,8 @@ const Index = () => {
   const [footerTo, setFooterTo] = useState("");
   const [footerSubject, setFooterSubject] = useState("");
   const [footerBody, setFooterBody] = useState("");
+  const [showCreateInbox, setShowCreateInbox] = useState(false);
+  const [newInboxName, setNewInboxName] = useState('');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentAccount, setCurrentAccount] = useState<string | null>(null);
   const PAGE_SIZE = 50;
@@ -1006,6 +1008,51 @@ const Index = () => {
     });
     setCurrentPage(1);
   };
+
+  const handleCreateInbox = async () => {
+    if (!newInboxName.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter a name for the inbox."
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("gmail-actions", {
+        body: {
+          action: "create-label",
+          name: newInboxName.trim()
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Create failed",
+          description: error.message
+        });
+        return;
+      }
+
+      toast({
+        title: "Inbox created",
+        description: `"${newInboxName.trim()}" inbox created successfully.`
+      });
+
+      // Refresh categories
+      queryClient.invalidateQueries({
+        queryKey: ['categories']
+      });
+
+      setShowCreateInbox(false);
+      setNewInboxName('');
+    } catch (e) {
+      toast({
+        title: "Create failed",
+        description: "Unexpected error creating inbox."
+      });
+    }
+  };
   const switchMailbox = async (newMailbox: string) => {
     setMailbox(newMailbox);
     setCurrentPage(1);
@@ -1042,15 +1089,23 @@ const Index = () => {
             if (isMobile) setMobileMenuOpen(false);
           }} />
          
-         {categories.length > 0 && <>
-           <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-             Categories
-           </div>
-           {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
-             switchMailbox(category);
-             if (isMobile) setMobileMenuOpen(false);
-           }} />)}
-         </>}
+          <div className="mt-4 mb-2 px-3 flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Categories
+            </span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 px-2 text-xs" 
+              onClick={() => setShowCreateInbox(true)}
+            >
+              +
+            </Button>
+          </div>
+          {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
+            switchMailbox(category);
+            if (isMobile) setMobileMenuOpen(false);
+          }} />)}
        </nav>
        <div className="px-3 pb-3">
          <div className="rounded-md border p-3 text-sm text-muted-foreground">
@@ -1311,6 +1366,35 @@ const Index = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      {/* Create Inbox Dialog */}
+      <Dialog open={showCreateInbox} onOpenChange={setShowCreateInbox}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Inbox</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Inbox name"
+              value={newInboxName}
+              onChange={(e) => setNewInboxName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateInbox();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateInbox(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateInbox}>
+              Create Inbox
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer Email Compose - Mobile Responsive */}
       {footerReplyOpen && <div className={`fixed bottom-0 right-4 ${

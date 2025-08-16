@@ -80,6 +80,24 @@ async function updateDraft(access_token: string, draftId: string, emailData: any
   return res.json();
 }
 
+async function createLabel(access_token: string, labelName: string) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/labels`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      Authorization: `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: labelName,
+      labelListVisibility: 'labelShow',
+      messageListVisibility: 'show'
+    })
+  });
+  if (!res.ok) throw new Error(`Create label failed: ${await res.text()}`);
+  return res.json();
+}
+
 function headerVal(headers: any[], name: string) {
   const h = headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase());
   return h?.value || "";
@@ -694,6 +712,75 @@ serve(async (req) => {
         JSON.stringify({ draft: true, id: draftResponse.id, message: draftResponse.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    } else if (action === "create-label") {
+      // Create a new label in Gmail
+      const { name } = body as { name?: string };
+      if (!name || !name.trim()) {
+        return new Response(JSON.stringify({ error: "Label name is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find gmail account
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (create-label) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      try {
+        const labelData = await createLabel(access_token, name.trim());
+        
+        // Store the label in our database
+        await admin.from("gmail_labels").upsert({
+          user_id: user.id,
+          account_id: account.id,
+          gmail_label_id: labelData.id,
+          name: labelData.name,
+          type: 'user',
+        });
+
+        return new Response(
+          JSON.stringify({ created: true, label: labelData }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err) {
+        console.error("gmail-actions create-label error:", err);
+        return new Response(JSON.stringify({ error: "Failed to create label in Gmail." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
