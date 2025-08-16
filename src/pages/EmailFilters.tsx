@@ -94,6 +94,12 @@ const emailTemplates = [
     subject: "You're invited: Annual Company Retreat 2024",
     from: "events@mycompany.com",
     body: "You're invited to our Annual Company Retreat from March 15-17 in Napa Valley! Three days of team building, workshops, and celebration. RSVP by February 1st. Accommodation and meals included."
+  },
+  {
+    name: "Shipping Updates",
+    subject: "Your order has shipped - Tracking #1Z999AA1234567890",
+    from: "noreply@amazon.com",
+    body: "Good news! Your package is on its way. Your order containing 1 item has shipped and is being delivered by UPS. Track your delivery: Your package is expected to arrive by end of day on Friday, March 22, 2024. We'll update you when it's out for delivery."
   }
 ];
 
@@ -345,18 +351,38 @@ export default function EmailFilters() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      <div>
-                        <Label className="text-sm font-medium">Conditions:</Label>
-                        <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
-                          {JSON.stringify(filter.conditions, null, 2)}
-                        </pre>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium">Actions:</Label>
-                        <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
-                          {JSON.stringify(filter.actions, null, 2)}
-                        </pre>
-                      </div>
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+                          >
+                            <Label className="text-sm font-medium cursor-pointer">Conditions:</Label>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
+                            {JSON.stringify(filter.conditions, null, 2)}
+                          </pre>
+                        </CollapsibleContent>
+                      </Collapsible>
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+                          >
+                            <Label className="text-sm font-medium cursor-pointer">Actions:</Label>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-auto">
+                            {JSON.stringify(filter.actions, null, 2)}
+                          </pre>
+                        </CollapsibleContent>
+                      </Collapsible>
                       <div className="text-sm text-muted-foreground">
                         Priority: {filter.priority}
                       </div>
