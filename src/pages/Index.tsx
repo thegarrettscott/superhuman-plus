@@ -1225,7 +1225,7 @@ const Index = () => {
              Mail ({totalUnreads} unread)
            </div>
          </div>
-         <SidebarItem label="Inbox" active={mailbox === "inbox"} count={emails.filter(e => e.labels.includes("inbox") && e.unread).length} onClick={() => {
+         <SidebarItem label="Inbox" active={mailbox === "inbox"} count={(emails || []).filter(e => e.labels.includes("inbox") && e.unread).length} onClick={() => {
            switchMailbox("inbox");
            if (isMobile) setMobileMenuOpen(false);
          }} />
@@ -1233,7 +1233,7 @@ const Index = () => {
            switchMailbox("sent");
            if (isMobile) setMobileMenuOpen(false);
          }} />
-         <SidebarItem label="Starred" active={mailbox === "starred"} count={emails.filter(e => e.starred && e.unread).length} onClick={() => {
+         <SidebarItem label="Starred" active={mailbox === "starred"} count={(emails || []).filter(e => e.starred && e.unread).length} onClick={() => {
            switchMailbox("starred");
            if (isMobile) setMobileMenuOpen(false);
          }} />
@@ -1259,12 +1259,12 @@ const Index = () => {
                +
              </Button>
            </div>
-           {categories.map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={emails.filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
+           {(categories || []).map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={(emails || []).filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
              switchMailbox(category);
              if (isMobile) setMobileMenuOpen(false);
            }} />)}
 
-           {filters.length > 0 && (
+           {(filters || []).length > 0 && (
              <>
                <div className="mt-4 mb-2 px-3 flex items-center justify-between">
                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -1279,12 +1279,12 @@ const Index = () => {
                    <Filter className="h-3 w-3" />
                  </Button>
                </div>
-               {filters.map(filter => (
-                 <SidebarItem 
-                   key={filter.id} 
-                   label={filter.name} 
-                   active={mailbox === `filter:${filter.id}`} 
-                   count={filterCategories[filter.name] || 0}
+                {(filters || []).map(filter => (
+                  <SidebarItem 
+                    key={filter.id} 
+                    label={filter.name} 
+                    active={mailbox === `filter:${filter.id}`} 
+                    count={(filterCategories || {})[filter.name] || 0}
                    onClick={() => {
                      switchMailbox(`filter:${filter.id}`);
                      if (isMobile) setMobileMenuOpen(false);
