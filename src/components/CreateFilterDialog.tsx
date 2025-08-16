@@ -35,15 +35,18 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
   // Reset form when dialog opens/closes or template changes
   useEffect(() => {
     if (open && templateEmail) {
-      setFilterName(`Filter for ${templateEmail.from.split('@')[0] || 'emails'}`);
-      setFromCondition(templateEmail.from);
+      setFilterName("");
+      setFromCondition("");
       setSubjectCondition("");
       setTags([]);
       setDescription("");
       
-      // Generate AI prompt based on template email
-      const fromDomain = templateEmail.from.split('@')[1] || '';
-      setAiPrompt(`Create a filter for emails from "${templateEmail.from}" with subject containing "${templateEmail.subject}". Tag these emails as "from-${fromDomain}" and mark as read.`);
+      // Generate intelligent AI prompt based on email analysis
+      const intelligentPrompt = generateIntelligentPrompt(templateEmail);
+      setAiPrompt(intelligentPrompt);
+      
+      // Auto-generate filter with AI immediately
+      generateFilterWithPrompt(intelligentPrompt);
     } else if (!open) {
       // Reset form when dialog closes
       setFilterName("");
@@ -56,33 +59,69 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
     }
   }, [open, templateEmail]);
 
-  const generateFilter = async () => {
-    if (!aiPrompt.trim()) {
-      toast({
-        title: "Prompt required",
-        description: "Please enter a description of the filter you want to create."
-      });
-      return;
+  const generateIntelligentPrompt = (email: Email): string => {
+    const fromDomain = email.from.split('@')[1] || '';
+    const subject = email.subject.toLowerCase();
+    const snippet = email.snippet.toLowerCase();
+    
+    // Detect email patterns for intelligent filtering
+    if (snippet.includes('unsubscribe') || snippet.includes('newsletter') || 
+        snippet.includes('marketing') || subject.includes('newsletter')) {
+      return `This appears to be a newsletter or marketing email from ${fromDomain}. Create a filter that catches all newsletters and marketing emails from this domain, not just this specific sender. Tag them as "newsletter" or "marketing" and consider moving them to a promotions category.`;
     }
+    
+    if (snippet.includes('order') || snippet.includes('receipt') || 
+        snippet.includes('purchase') || snippet.includes('invoice')) {
+      return `This appears to be a transactional/order email from ${fromDomain}. Create a filter for order confirmations, receipts, and transactional emails from this company. Tag them as "orders" or "receipts" and mark as important.`;
+    }
+    
+    if (fromDomain.includes('linkedin') || fromDomain.includes('twitter') || 
+        fromDomain.includes('facebook') || fromDomain.includes('instagram')) {
+      return `This is a social media notification from ${fromDomain}. Create a filter for social media notifications from this platform. Tag them as "social" and consider moving to social category.`;
+    }
+    
+    if (snippet.includes('support') || snippet.includes('ticket') || 
+        snippet.includes('help') || subject.includes('support')) {
+      return `This appears to be a support or service email from ${fromDomain}. Create a filter for customer support and service emails from this company. Tag them as "support" and mark as important.`;
+    }
+    
+    if (snippet.includes('security') || snippet.includes('login') || 
+        snippet.includes('password') || snippet.includes('verification')) {
+      return `This appears to be a security or verification email from ${fromDomain}. Create a filter for security notifications from this service. Tag them as "security" and mark as very important.`;
+    }
+    
+    // Default intelligent prompt
+    return `Analyze this email from ${fromDomain} and create an intelligent filter. Instead of filtering just this specific sender, identify the category or type of email this represents and create a broader filter that would catch similar emails. Consider the sender domain, email content patterns, and purpose.`;
+  };
+
+  const generateFilterWithPrompt = async (prompt: string) => {
+    if (!prompt.trim()) return;
 
     setGeneratingFilter(true);
     try {
       const { data, error } = await supabase.functions.invoke('email-filter', {
         body: {
           action: 'generate-filter',
-          prompt: aiPrompt
+          prompt: prompt
         }
       });
 
       if (error) throw error;
 
-      if (data?.filter) {
-        const filter = data.filter;
-        setFilterName(filter.name || filterName);
-        setDescription(filter.description || description);
-        setFromCondition(filter.conditions?.from || fromCondition);
-        setSubjectCondition(filter.conditions?.subject || subjectCondition);
-        setTags(filter.actions?.tags || tags);
+      // Fix response handling - use generatedFilter instead of filter
+      if (data?.generatedFilter) {
+        const filter = data.generatedFilter;
+        setFilterName(filter.name || "");
+        setDescription(filter.description || "");
+        
+        // Handle new condition structure
+        const conditions = filter.conditions || {};
+        setFromCondition(conditions.sender_email || conditions.sender_domain || "");
+        setSubjectCondition(conditions.subject_contains || "");
+        
+        // Handle new actions structure
+        const actions = filter.actions || {};
+        setTags(actions.add_tags || []);
 
         toast({
           title: "Filter generated",
@@ -98,6 +137,18 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
     } finally {
       setGeneratingFilter(false);
     }
+  };
+
+  const generateFilter = async () => {
+    if (!aiPrompt.trim()) {
+      toast({
+        title: "Prompt required",
+        description: "Please enter a description of the filter you want to create."
+      });
+      return;
+    }
+
+    await generateFilterWithPrompt(aiPrompt);
   };
 
   const addTag = () => {
@@ -138,12 +189,13 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
           name: filterName,
           description: description || null,
           conditions: {
-            from: fromCondition || null,
-            subject: subjectCondition || null
+            sender_email: fromCondition?.includes('@') ? fromCondition : null,
+            sender_domain: fromCondition && !fromCondition.includes('@') ? fromCondition : null,
+            subject_contains: subjectCondition || null
           },
           actions: {
-            tags: tags.length > 0 ? tags : null,
-            markAsRead: true
+            add_tags: tags.length > 0 ? tags : null,
+            mark_as_read: true
           },
           is_active: true,
           priority: 1
@@ -226,12 +278,12 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fromCondition">From Email (optional)</Label>
+              <Label htmlFor="fromCondition">From Email/Domain (optional)</Label>
               <Input
                 id="fromCondition"
                 value={fromCondition}
                 onChange={(e) => setFromCondition(e.target.value)}
-                placeholder="sender@example.com"
+                placeholder="sender@example.com or domain.com"
               />
             </div>
 

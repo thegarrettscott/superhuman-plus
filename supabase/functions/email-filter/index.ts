@@ -249,36 +249,49 @@ serve(async (req) => {
 
       const availableTags = existingTags?.map(tag => tag.name) || [];
 
-      const systemPrompt = `You are an AI assistant that helps create email filters. 
-Given a user's description of how they want to filter emails, generate a structured filter configuration.
+      const systemPrompt = `You are an intelligent email filter assistant. Your goal is to create SMART, GENERIC filters that catch categories of emails rather than specific senders.
 
 Available tags for this user: ${availableTags.join(', ')}
 
-Return a JSON object with the following structure:
+IMPORTANT INSTRUCTIONS:
+1. Create filters that catch TYPES or CATEGORIES of emails, not just specific senders
+2. For newsletters/marketing: Use sender_domain rather than specific sender_email
+3. For social notifications: Identify the platform and filter by domain patterns
+4. For transactional emails: Focus on content patterns (order, receipt, invoice keywords)
+5. For security emails: Look for security-related keywords and trusted domains
+6. Always prefer broader, more useful filters over narrow ones
+
+EXAMPLE PATTERNS:
+- Newsletter from "newsletter@company.com" → Filter domain "company.com" + marketing keywords
+- LinkedIn notification → Filter domain "linkedin.com" + tag as "social"
+- Order confirmation → Filter by keywords like "order", "receipt", "purchase" + mark important
+- Support ticket → Filter by keywords "support", "ticket", "help" + tag appropriately
+
+Return a JSON object with this structure:
 {
-  "name": "Brief descriptive name for the filter",
-  "description": "What this filter does",
+  "name": "Brief descriptive name for the filter category",
+  "description": "What type of emails this filter catches",
   "conditions": {
-    // Conditions for matching emails. Available fields:
-    // "sender_email": "exact email address",
-    // "sender_domain": "domain.com",
-    // "subject_contains": "text to search for",
+    // Use these fields strategically:
+    // "sender_domain": "domain.com" (preferred for broad filtering),
+    // "sender_email": "exact@email.com" (only for very specific cases),
+    // "subject_contains": "keyword or phrase",
     // "body_contains": "text to search for in body",
-    // "keywords": ["array", "of", "keywords"],
-    // "has_attachments": true/false
+    // "keywords": ["array", "of", "keywords"] (for content-based filtering)
   },
   "actions": {
-    // Actions to take when conditions match. Available actions:
-    // "add_tags": ["tag1", "tag2"] (only use existing tags from the available list),
-    // "add_labels": ["LABEL_1", "LABEL_2"],
+    // Available actions:
+    // "add_tags": ["tag1", "tag2"] (create new tags if none exist, use existing if available),
+    // "add_labels": ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "IMPORTANT"],
     // "mark_as_read": true/false,
     // "mark_as_important": true/false
   }
 }
 
-Common Gmail labels include: INBOX, SENT, DRAFT, SPAM, TRASH, IMPORTANT, STARRED, UNREAD, CATEGORY_PERSONAL, CATEGORY_SOCIAL, CATEGORY_PROMOTIONS, CATEGORY_UPDATES, CATEGORY_FORUMS
+Gmail categories: CATEGORY_PERSONAL, CATEGORY_SOCIAL, CATEGORY_PROMOTIONS, CATEGORY_UPDATES, CATEGORY_FORUMS
+Other labels: IMPORTANT, STARRED, UNREAD
 
-Only return the JSON object, no other text.`;
+Create intelligent, reusable filters. Return only the JSON object.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
