@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, Trash2, Play, ArrowLeft } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Edit, Trash2, Play, ArrowLeft, ChevronDown, ChevronRight, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +45,57 @@ interface EmailTag {
   created_at: string;
   updated_at: string;
 }
+
+const emailTemplates = [
+  {
+    name: "Sales Inquiry",
+    subject: "Interested in your premium package",
+    from: "prospect@company.com",
+    body: "Hi, I saw your website and I'm interested in learning more about your premium package. Could you send me pricing information and schedule a demo? We're looking to implement a solution for our team of 50 people."
+  },
+  {
+    name: "Customer Support",
+    subject: "Issue with login - urgent",
+    from: "customer@gmail.com",
+    body: "Hi support team, I'm unable to log into my account. I've tried resetting my password multiple times but the reset email isn't arriving. This is urgent as I need to access my data for a presentation tomorrow."
+  },
+  {
+    name: "Internal Meeting",
+    subject: "Weekly team standup - Tomorrow 10 AM",
+    from: "manager@mycompany.com",
+    body: "Team, reminder about our weekly standup tomorrow at 10 AM in conference room B. We'll review sprint progress, discuss blockers, and plan for next week. Please prepare your updates."
+  },
+  {
+    name: "Newsletter Subscription",
+    subject: "Your weekly tech digest is here!",
+    from: "newsletter@techdigest.com",
+    body: "This week in tech: AI breakthrough in healthcare, new programming framework released, cybersecurity trends, and startup funding news. Click here to read the full newsletter."
+  },
+  {
+    name: "Vendor Invoice",
+    subject: "Invoice #INV-2024-1234 - Payment Due",
+    from: "billing@vendorcompany.com",
+    body: "Dear valued customer, please find attached invoice #INV-2024-1234 for services rendered in January. Payment is due within 30 days. Contact us if you have any questions."
+  },
+  {
+    name: "Recruitment Email",
+    subject: "Exciting opportunity - Senior Developer Role",
+    from: "recruiter@techstartup.com",
+    body: "Hi! I came across your profile and think you'd be perfect for a Senior Developer role at our fast-growing startup. Competitive salary, equity, remote work options. Would you be interested in a quick chat?"
+  },
+  {
+    name: "Security Alert",
+    subject: "Security Alert: Unusual login detected",
+    from: "security@platform.com",
+    body: "We detected an unusual login to your account from a new device in San Francisco, CA. If this was you, no action needed. If not, please secure your account immediately by changing your password."
+  },
+  {
+    name: "Event Invitation",
+    subject: "You're invited: Annual Company Retreat 2024",
+    from: "events@mycompany.com",
+    body: "You're invited to our Annual Company Retreat from March 15-17 in Napa Valley! Three days of team building, workshops, and celebration. RSVP by February 1st. Accommodation and meals included."
+  }
+];
 
 export default function EmailFilters() {
   const [filters, setFilters] = useState<EmailFilter[]>([]);
@@ -375,6 +428,38 @@ export default function EmailFilters() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label>Email Templates</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Mail className="h-4 w-4 mr-2" />
+                        Load Template
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-64 bg-background border shadow-lg z-50">
+                      {emailTemplates.map((template) => (
+                        <DropdownMenuItem
+                          key={template.name}
+                          onClick={() => setTestEmail({
+                            subject: template.subject,
+                            from: template.from,
+                            to: ["me@example.com"],
+                            cc: [],
+                            body: template.body
+                          })}
+                          className="cursor-pointer hover:bg-muted"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">{template.name}</span>
+                            <span className="text-xs text-muted-foreground">{template.subject}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Subject</Label>
@@ -629,26 +714,20 @@ function FilterDialog({
               <Label>Active</Label>
             </div>
           </div>
-          <div>
-            <Label>Conditions (JSON)</Label>
-            <Textarea
-              value={formData.conditions}
-              onChange={(e) => setFormData(prev => ({ ...prev, conditions: e.target.value }))}
-              rows={6}
-              className="font-mono text-xs"
-              placeholder='{"sender_domain": "company.com", "keywords": ["urgent"], "subject_contains": "meeting"}'
-            />
-          </div>
-          <div>
-            <Label>Actions (JSON)</Label>
-            <Textarea
-              value={formData.actions}
-              onChange={(e) => setFormData(prev => ({ ...prev, actions: e.target.value }))}
-              rows={4}
-              className="font-mono text-xs"
-              placeholder='{"add_tags": ["work"], "add_labels": ["CATEGORY_PERSONAL"]}'
-            />
-          </div>
+          <CollapsibleFilterSection
+            title="Conditions"
+            value={formData.conditions}
+            onChange={(value) => setFormData(prev => ({ ...prev, conditions: value }))}
+            placeholder='{"sender_domain": "company.com", "keywords": ["urgent"], "subject_contains": "meeting"}'
+            rows={6}
+          />
+          <CollapsibleFilterSection
+            title="Actions"
+            value={formData.actions}
+            onChange={(value) => setFormData(prev => ({ ...prev, actions: value }))}
+            placeholder='{"add_tags": ["work"], "add_labels": ["CATEGORY_PERSONAL"]}'
+            rows={4}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -731,5 +810,48 @@ function TagDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CollapsibleFilterSection({
+  title,
+  value,
+  onChange,
+  placeholder,
+  rows
+}: {
+  title: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  rows: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+        >
+          <Label className="cursor-pointer">{title} (JSON)</Label>
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={rows}
+          className="font-mono text-xs"
+          placeholder={placeholder}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
