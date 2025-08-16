@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X, Filter, Plus } from "lucide-react";
 import { CreateFilterDialog } from "@/components/CreateFilterDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ComposeDialog } from "@/components/ComposeDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -103,6 +104,9 @@ const Index = () => {
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentAccount, setCurrentAccount] = useState<string | null>(null);
+  const [processingFilters, setProcessingFilters] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingSummary, setProcessingSummary] = useState<string | null>(null);
   const PAGE_SIZE = 50;
   async function loadCategoriesAndUnreads() {
     // Load all unique categories/labels from user's emails
@@ -146,17 +150,24 @@ const Index = () => {
       // Calculate email counts for each filter
       for (const filter of filtersData) {
         const actions = filter.actions as any;
-        const tags = actions?.tags || [];
+        const tags: string[] = actions?.add_tags || [];
+        if (!tags.length) {
+          filterCategories[filter.name] = 0;
+          continue;
+        }
+        const { data: tagIdRows } = await supabase
+          .from('email_tags')
+          .select('id')
+          .in('name', tags);
+        const tagIds = (tagIdRows || []).map((t: any) => t.id);
+        if (!tagIds.length) {
+          filterCategories[filter.name] = 0;
+          continue;
+        }
         const { count } = await supabase
           .from('email_message_tags')
           .select('message_id', { count: 'exact', head: true })
-          .in('tag_id', 
-            await supabase
-              .from('email_tags')
-              .select('id')
-              .in('name', tags)
-              .then(({ data }) => data?.map(t => t.id) || [])
-          );
+          .in('tag_id', tagIds);
         filterCategories[filter.name] = count || 0;
       }
     }
@@ -354,30 +365,35 @@ const Index = () => {
 
     // Load filter results and tags for each email
     await Promise.all(mapped.map(async (email) => {
-      // Get tags for this email
-      const { data: messageTags } = await supabase
+      // Get tags for this email (manual join since FKs may not be set)
+      const { data: messageTagRows, error: mtErr } = await supabase
         .from('email_message_tags')
-        .select(`
-          email_tags (id, name, color)
-        `)
+        .select('tag_id')
         .eq('message_id', email.id);
 
-      email.tags = messageTags?.map((mt: any) => mt.email_tags.name) || [];
+      let tagNames: string[] = [];
+      if (!mtErr && messageTagRows && messageTagRows.length > 0) {
+        const tagIds = messageTagRows.map((r: any) => r.tag_id);
+        const { data: tagRows } = await supabase
+          .from('email_tags')
+          .select('id, name')
+          .in('id', tagIds);
+        tagNames = tagRows?.map((t: any) => t.name) || [];
+      }
+      email.tags = tagNames;
 
-      // Get filter results (simplified - could be enhanced to track which filters applied)
+      // Filter results shown on list chips
       email.filterResults = filters
         .filter(f => {
           const actions = f.actions as any;
-          return f.is_active && actions?.tags?.some((tag: string) => email.tags?.includes(tag));
+          const addTags: string[] = actions?.add_tags || [];
+          return f.is_active && addTags.some((tag: string) => email.tags?.includes(tag));
         })
-        .map(f => {
-          const actions = f.actions as any;
-          return {
-            filterId: f.id,
-            filterName: f.name,
-            tags: actions?.tags || []
-          };
-        });
+        .map(f => ({
+          filterId: f.id,
+          filterName: f.name,
+          tags: (f.actions as any)?.add_tags || []
+        }));
     }));
 
     // Proactive bodies
@@ -1307,49 +1323,39 @@ const Index = () => {
                 }
               }} />
               </div>
-              {mailbox === "inbox" && (
-                <Button 
-                  variant="outline" 
+              {mailbox === 'inbox' && (
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={async () => {
                     const { data: { session } } = await supabase.auth.getSession();
                     if (!session) {
-                      toast({
-                        title: "Login required",
-                        description: "Please log in to process emails."
-                      });
+                      toast({ title: 'Login required', description: 'Please log in to process emails.' });
                       return;
                     }
-
+                    setProcessingFilters(true);
+                    setProcessingProgress(0);
+                    setProcessingSummary(null);
+                    const interval = setInterval(() => {
+                      setProcessingProgress(prev => Math.min(prev + 5, 90));
+                    }, 400);
                     try {
-                      toast({
-                        title: "Processing emails",
-                        description: "Applying filters to recent emails..."
+                      const { data, error } = await supabase.functions.invoke('process-filters', {
+                        headers: { Authorization: `Bearer ${session.access_token}` }
                       });
-
-                      const { data, error } = await supabase.functions.invoke("process-filters", {
-                        headers: {
-                          Authorization: `Bearer ${session.access_token}`
-                        }
-                      });
-
                       if (error) throw error;
-
-                      toast({
-                        title: "Processing complete",
-                        description: data.message || `Processed ${data.processedCount} emails`
-                      });
-
-                      // Refresh emails and categories to show updated tags
+                      setProcessingProgress(100);
+                      setProcessingSummary(data?.message || `Processed ${data?.processedCount || 0} emails`);
                       queryClient.invalidateQueries({ queryKey: ['emails'] });
                       queryClient.invalidateQueries({ queryKey: ['categories'] });
                       refetchEmails();
                     } catch (error: any) {
                       console.error('Error processing filters:', error);
-                      toast({
-                        title: "Processing failed",
-                        description: error.message || "Failed to process emails with filters"
-                      });
+                      setProcessingSummary(error?.message || 'Failed to process emails with filters');
+                    } finally {
+                      clearInterval(interval);
+                      setTimeout(() => setProcessingFilters(false), 1200);
+                      setTimeout(() => setProcessingSummary(null), 5000);
                     }
                   }}
                 >
@@ -1392,6 +1398,26 @@ const Index = () => {
           </div>
         </div>
       </header>
+      {processingFilters && (
+        <div className="border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container py-2">
+            <div className="flex items-center gap-3">
+              <Filter className="h-4 w-4 text-primary" />
+              <div className="flex-1">
+                <div className="text-sm">Applying filters to recent emails...</div>
+                <Progress value={processingProgress} className="h-1 mt-2" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {processingSummary && !processingFilters && (
+        <div className="border-b bg-muted/30">
+          <div className="container py-2 text-sm">
+            {processingSummary}
+          </div>
+        </div>
+      )}
 
        <main className={`container py-4 ${
          isMobile 
