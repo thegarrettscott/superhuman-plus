@@ -235,6 +235,90 @@ serve(async (req) => {
         JSON.stringify({ success: true, message: 'Email processed successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } else if (action === 'generate-filter') {
+      const { prompt } = body;
+      if (!prompt) {
+        throw new Error('Prompt is required for filter generation');
+      }
+
+      // Get existing tags to include in the generation
+      const { data: existingTags } = await admin
+        .from('email_tags')
+        .select('name')
+        .eq('user_id', user.id);
+
+      const availableTags = existingTags?.map(tag => tag.name) || [];
+
+      const systemPrompt = `You are an AI assistant that helps create email filters. 
+Given a user's description of how they want to filter emails, generate a structured filter configuration.
+
+Available tags for this user: ${availableTags.join(', ')}
+
+Return a JSON object with the following structure:
+{
+  "name": "Brief descriptive name for the filter",
+  "description": "What this filter does",
+  "conditions": {
+    // Conditions for matching emails. Available fields:
+    // "sender_email": "exact email address",
+    // "sender_domain": "domain.com",
+    // "subject_contains": "text to search for",
+    // "body_contains": "text to search for in body",
+    // "keywords": ["array", "of", "keywords"],
+    // "has_attachments": true/false
+  },
+  "actions": {
+    // Actions to take when conditions match. Available actions:
+    // "add_tags": ["tag1", "tag2"] (only use existing tags from the available list),
+    // "add_labels": ["LABEL_1", "LABEL_2"],
+    // "mark_as_read": true/false,
+    // "mark_as_important": true/false
+  }
+}
+
+Common Gmail labels include: INBOX, SENT, DRAFT, SPAM, TRASH, IMPORTANT, STARRED, UNREAD, CATEGORY_PERSONAL, CATEGORY_SOCIAL, CATEGORY_PROMOTIONS, CATEGORY_UPDATES, CATEGORY_FORUMS
+
+Only return the JSON object, no other text.`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-2025-04-14',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 1000,
+          temperature: 0.3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${await response.text()}`);
+      }
+
+      const aiResult = await response.json();
+      const aiResponse = aiResult.choices[0]?.message?.content;
+
+      let generatedFilter;
+      try {
+        generatedFilter = JSON.parse(aiResponse);
+      } catch (e) {
+        throw new Error('Failed to parse AI response as valid JSON');
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          generatedFilter,
+          usage: aiResult.usage
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     } else if (action === 'test-filters') {
       const { emailData, filters } = body;
       if (!emailData || !filters) {

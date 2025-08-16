@@ -488,6 +488,9 @@ function FilterDialog({
     is_active: true,
     priority: 0
   });
+  const [prompt, setPrompt] = useState("");
+  const [generatingFilter, setGeneratingFilter] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (filter) {
@@ -499,24 +502,54 @@ function FilterDialog({
         is_active: filter.is_active,
         priority: filter.priority
       });
+      setPrompt("");
     } else {
       setFormData({
         name: "",
         description: "",
-        conditions: JSON.stringify({
-          sender_domain: "company.com",
-          keywords: ["meeting", "urgent"],
-          subject_contains: "project"
-        }, null, 2),
-        actions: JSON.stringify({
-          add_tags: ["work", "important"],
-          add_labels: ["CATEGORY_PERSONAL"]
-        }, null, 2),
+        conditions: "{}",
+        actions: "{}",
         is_active: true,
         priority: 0
       });
+      setPrompt("");
     }
   }, [filter, open]);
+
+  const generateFilter = async () => {
+    if (!prompt.trim()) {
+      toast({ title: "Please enter a prompt", variant: "destructive" });
+      return;
+    }
+
+    setGeneratingFilter(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('email-filter', {
+        body: {
+          action: 'generate-filter',
+          prompt: prompt
+        }
+      });
+
+      if (error) throw error;
+
+      const generated = data.generatedFilter;
+      setFormData({
+        name: generated.name || formData.name,
+        description: generated.description || formData.description,
+        conditions: JSON.stringify(generated.conditions || {}, null, 2),
+        actions: JSON.stringify(generated.actions || {}, null, 2),
+        is_active: formData.is_active,
+        priority: formData.priority
+      });
+
+      toast({ title: "Filter generated successfully! You can now edit it." });
+    } catch (error: any) {
+      toast({ title: "Error generating filter", description: error.message, variant: "destructive" });
+    } finally {
+      setGeneratingFilter(false);
+    }
+  };
 
   const handleSave = () => {
     try {
@@ -530,7 +563,7 @@ function FilterDialog({
       };
       onSave(data);
     } catch (error) {
-      console.error('Invalid JSON in filter data');
+      toast({ title: "Invalid JSON in filter data", variant: "destructive" });
     }
   };
 
@@ -541,6 +574,28 @@ function FilterDialog({
           <DialogTitle>{filter ? "Edit Filter" : "Create Filter"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {!filter && (
+            <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+              <Label>AI Filter Generation</Label>
+              <p className="text-sm text-muted-foreground">
+                Describe what kind of emails you want to filter and how to handle them. 
+                Example: "Tag emails from my manager as important and mark as read"
+              </p>
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe your filter requirements..."
+                rows={3}
+              />
+              <Button 
+                onClick={generateFilter} 
+                disabled={generatingFilter}
+                className="w-full"
+              >
+                {generatingFilter ? "Generating..." : "Generate Filter with AI"}
+              </Button>
+            </div>
+          )}
           <div>
             <Label>Name</Label>
             <Input
