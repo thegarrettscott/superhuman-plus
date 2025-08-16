@@ -293,13 +293,14 @@ serve(async (req) => {
       );
     } else if (action === "send") {
       // Send an email via Gmail API
-      const { to, cc = [], bcc = [], subject = "", text = "", html = "" } = body as {
+      const { to, cc = [], bcc = [], subject = "", text = "", html = "", attachments = [] } = body as {
         to?: string[];
         cc?: string[];
         bcc?: string[];
         subject?: string;
         text?: string;
         html?: string;
+        attachments?: string[];
       };
 
       if (!to || !Array.isArray(to) || to.length === 0) {
@@ -350,15 +351,93 @@ serve(async (req) => {
         return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       }
 
-      const headers: string[] = [];
-      if (to.length) headers.push(`To: ${to.join(', ')}`);
-      if (cc.length) headers.push(`Cc: ${cc.join(', ')}`);
-      if (bcc.length) headers.push(`Bcc: ${bcc.join(', ')}`);
-      headers.push(`Subject: ${subject}`);
-      const contentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
-      headers.push(`Content-Type: ${contentType}`);
-      const bodyContent = html || text || '';
-      const rawMessage = `${headers.join('\r\n')}\r\n\r\n${bodyContent}`;
+      // Download attachments from storage
+      const attachmentData: { filename: string; content: string; contentType: string }[] = [];
+      if (attachments.length > 0) {
+        const storageClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+        
+        for (const path of attachments) {
+          try {
+            const { data: fileData, error: downloadError } = await storageClient.storage
+              .from('email-attachments')
+              .download(path);
+
+            if (downloadError) {
+              console.error('Failed to download attachment:', downloadError);
+              continue;
+            }
+
+            const arrayBuffer = await fileData.arrayBuffer();
+            const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+            const filename = path.split('/').pop() || 'attachment';
+            
+            // Simple content type detection
+            const ext = filename.split('.').pop()?.toLowerCase();
+            let contentType = 'application/octet-stream';
+            if (ext === 'pdf') contentType = 'application/pdf';
+            else if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+            else if (ext === 'png') contentType = 'image/png';
+            else if (ext === 'gif') contentType = 'image/gif';
+            else if (ext === 'txt') contentType = 'text/plain';
+            else if (ext === 'doc') contentType = 'application/msword';
+            else if (ext === 'docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+            attachmentData.push({
+              filename,
+              content: base64Content,
+              contentType
+            });
+          } catch (error) {
+            console.error('Error processing attachment:', error);
+          }
+        }
+      }
+
+      let rawMessage: string;
+
+      if (attachmentData.length === 0) {
+        // Simple message without attachments
+        const headers: string[] = [];
+        if (to.length) headers.push(`To: ${to.join(', ')}`);
+        if (cc.length) headers.push(`Cc: ${cc.join(', ')}`);
+        if (bcc.length) headers.push(`Bcc: ${bcc.join(', ')}`);
+        headers.push(`Subject: ${subject}`);
+        const contentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
+        headers.push(`Content-Type: ${contentType}`);
+        const bodyContent = html || text || '';
+        rawMessage = `${headers.join('\r\n')}\r\n\r\n${bodyContent}`;
+      } else {
+        // Multipart message with attachments
+        const boundary = `boundary_${Date.now()}_${Math.random().toString(36)}`;
+        const headers: string[] = [];
+        if (to.length) headers.push(`To: ${to.join(', ')}`);
+        if (cc.length) headers.push(`Cc: ${cc.join(', ')}`);
+        if (bcc.length) headers.push(`Bcc: ${bcc.join(', ')}`);
+        headers.push(`Subject: ${subject}`);
+        headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+        headers.push(`MIME-Version: 1.0`);
+
+        let body = `${headers.join('\r\n')}\r\n\r\n`;
+        
+        // Add text/html content
+        body += `--${boundary}\r\n`;
+        const contentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
+        body += `Content-Type: ${contentType}\r\n\r\n`;
+        body += `${html || text || ''}\r\n\r\n`;
+
+        // Add attachments
+        for (const attachment of attachmentData) {
+          body += `--${boundary}\r\n`;
+          body += `Content-Type: ${attachment.contentType}\r\n`;
+          body += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
+          body += `Content-Transfer-Encoding: base64\r\n\r\n`;
+          body += `${attachment.content}\r\n\r\n`;
+        }
+
+        body += `--${boundary}--\r\n`;
+        rawMessage = body;
+      }
+
       const raw = base64UrlEncode(rawMessage);
 
       const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
