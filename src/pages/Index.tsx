@@ -61,7 +61,7 @@ const Index = () => {
       window.history.replaceState({}, "", url);
     }
   }, []);
-  const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred" | "sent" | string>("inbox");
+  const [mailbox, setMailbox] = useState<"inbox" | "archived" | "starred" | "sent" | "drafts" | string>("inbox");
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
@@ -218,10 +218,58 @@ const Index = () => {
       // Filter by SENT label
       countQuery = countQuery.contains('label_ids', ['SENT']);
       dataQuery = dataQuery.contains('label_ids', ['SENT']);
+    } else if (targetMailbox === 'drafts') {
+      // Check if we have any drafts first
+      const {
+        count: draftCount
+      } = await supabase.from('email_messages').select('*', {
+        count: 'exact',
+        head: true
+      }).contains('label_ids', ['DRAFT']);
+
+      // If no drafts cached, import them first
+      if (draftCount === 0) {
+        setIsLoading(true);
+        try {
+          console.log('Importing drafts from Gmail...');
+          const {
+            error: importError
+          } = await supabase.functions.invoke('gmail-actions', {
+            body: {
+              action: 'import',
+              mailbox: 'drafts',
+              max: 50
+            }
+          });
+          if (importError) {
+            console.error('Failed to import drafts:', importError);
+            toast({
+              title: 'Failed to import drafts',
+              description: importError.message
+            });
+          } else {
+            console.log('Successfully imported drafts from Gmail');
+            toast({
+              title: 'Drafts imported successfully'
+            });
+          }
+        } catch (err) {
+          console.error('Error importing drafts:', err);
+          toast({
+            title: 'Error importing drafts'
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }
+
+      // Filter by DRAFT label
+      countQuery = countQuery.contains('label_ids', ['DRAFT']);
+      dataQuery = dataQuery.contains('label_ids', ['DRAFT']);
     } else if (targetMailbox === 'archived') {
       countQuery = countQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
       dataQuery = dataQuery.not('label_ids', 'cs', ['INBOX']).not('label_ids', 'cs', ['TRASH']);
-    } else if (targetMailbox !== 'inbox' && targetMailbox !== 'starred' && targetMailbox !== 'sent' && targetMailbox !== 'archived') {
+    } else if (targetMailbox !== 'inbox' && targetMailbox !== 'starred' && targetMailbox !== 'sent' && targetMailbox !== 'archived' && targetMailbox !== 'drafts') {
       // Custom category/label
       countQuery = countQuery.contains('label_ids', [targetMailbox]);
       dataQuery = dataQuery.contains('label_ids', [targetMailbox]);
@@ -460,9 +508,10 @@ const Index = () => {
         // Check if email has SENT label or is from user's address
         return e.labels.includes("sent") || e.from.includes("@pipedreamlabs.co"); // Temporary hardcode, should use dynamic user email
       }
+      if (mailbox === "drafts") return e.labels.includes("draft");
       if (mailbox === "starred") return e.starred;
       if (mailbox === "archived") return !e.labels.includes("inbox") && !e.labels.includes("trash");
-      if (mailbox !== "inbox" && mailbox !== "sent" && mailbox !== "starred" && mailbox !== "archived") {
+      if (mailbox !== "inbox" && mailbox !== "sent" && mailbox !== "starred" && mailbox !== "archived" && mailbox !== "drafts") {
         // Custom category
         return e.labels.includes(mailbox.toLowerCase());
       }
@@ -984,10 +1033,14 @@ const Index = () => {
            switchMailbox("starred");
            if (isMobile) setMobileMenuOpen(false);
          }} />
-         <SidebarItem label="Archived" active={mailbox === "archived"} onClick={() => {
-           switchMailbox("archived");
-           if (isMobile) setMobileMenuOpen(false);
-         }} />
+          <SidebarItem label="Archived" active={mailbox === "archived"} onClick={() => {
+            switchMailbox("archived");
+            if (isMobile) setMobileMenuOpen(false);
+          }} />
+          <SidebarItem label="Drafts" active={mailbox === "drafts"} onClick={() => {
+            switchMailbox("drafts");
+            if (isMobile) setMobileMenuOpen(false);
+          }} />
          
          {categories.length > 0 && <>
            <div className="mt-4 mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -1241,6 +1294,9 @@ const Index = () => {
             </CommandItem>
             <CommandItem onSelect={() => switchMailbox("archived")}>
               Archived
+            </CommandItem>
+            <CommandItem onSelect={() => switchMailbox("drafts")}>
+              Drafts
             </CommandItem>
             {categories.map(category => <CommandItem key={category} onSelect={() => switchMailbox(category)}>
                 {category}

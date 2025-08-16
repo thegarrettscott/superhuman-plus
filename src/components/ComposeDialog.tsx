@@ -169,6 +169,59 @@ export function ComposeDialog({
     }
   };
 
+  const handleSaveDraft = async () => {
+    const toList = to.split(',').map(s => s.trim()).filter(Boolean);
+    const ccList = cc.split(',').map(s => s.trim()).filter(Boolean);
+    const bccList = bcc.split(',').map(s => s.trim()).filter(Boolean);
+    
+    if (toList.length === 0) {
+      toast({
+        title: 'Add recipient',
+        description: 'Please add at least one email address to save draft.'
+      });
+      return;
+    }
+
+    setSending(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'draft',
+          to: toList,
+          cc: ccList.length > 0 ? ccList : undefined,
+          bcc: bccList.length > 0 ? bccList : undefined,
+          subject,
+          text: body
+        }
+      });
+
+      if (error) {
+        toast({
+          title: 'Save failed',
+          description: error.message
+        });
+        return;
+      }
+
+      toast({
+        title: 'Draft saved',
+        description: 'Draft saved to Gmail.'
+      });
+      onOpenChange(false);
+      setTo("");
+      setCc("");
+      setBcc("");
+      setSubject("");
+      setBody("");
+      setAttachments([]);
+    } catch (error) {
+      console.error('Draft save error:', error);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -328,6 +381,9 @@ export function ComposeDialog({
           <Button onClick={handleSend} disabled={sending || uploading}>
             <Send className="mr-2 h-4 w-4" /> 
             {uploading ? 'Uploading…' : sending ? 'Sending…' : 'Send'}
+          </Button>
+          <Button variant="outline" onClick={handleSaveDraft} disabled={sending || uploading}>
+            {sending ? 'Saving…' : 'Save Draft'}
           </Button>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={sending || uploading}>
             <X className="mr-2 h-4 w-4" /> Discard

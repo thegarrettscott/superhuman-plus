@@ -36,6 +36,50 @@ async function listRecentMessageIds(access_token: string, max = 20, labelId = "I
   return (json.messages || []).map((m: any) => m.id as string);
 }
 
+async function listDrafts(access_token: string, max = 20) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/drafts?maxResults=${max}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}` } });
+  if (!res.ok) throw new Error(`List drafts failed: ${await res.text()}`);
+  const json = await res.json();
+  return (json.drafts || []).map((d: any) => ({ id: d.id, messageId: d.message.id }));
+}
+
+async function createDraft(access_token: string, emailData: any) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/drafts`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      Authorization: `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: {
+        raw: emailData
+      }
+    })
+  });
+  if (!res.ok) throw new Error(`Create draft failed: ${await res.text()}`);
+  return res.json();
+}
+
+async function updateDraft(access_token: string, draftId: string, emailData: any) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/drafts/${draftId}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 
+      Authorization: `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: {
+        raw: emailData
+      }
+    })
+  });
+  if (!res.ok) throw new Error(`Update draft failed: ${await res.text()}`);
+  return res.json();
+}
+
 function headerVal(headers: any[], name: string) {
   const h = headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase());
   return h?.value || "";
@@ -159,10 +203,17 @@ serve(async (req) => {
 
       // Fetch recent messages based on mailbox
       let ids: string[] = [];
+      let drafts: any[] = [];
       try {
-        const labelId = mailbox === "sent" ? "SENT" : "INBOX";
-        console.log(`Fetching ${max} messages from ${labelId} for user ${user.id}`);
-        ids = await listRecentMessageIds(access_token, max, labelId);
+        if (mailbox === "drafts") {
+          console.log(`Fetching ${max} drafts for user ${user.id}`);
+          drafts = await listDrafts(access_token, max);
+          ids = drafts.map(d => d.messageId);
+        } else {
+          const labelId = mailbox === "sent" ? "SENT" : "INBOX";
+          console.log(`Fetching ${max} messages from ${labelId} for user ${user.id}`);
+          ids = await listRecentMessageIds(access_token, max, labelId);
+        }
       } catch (err) {
         console.error("gmail-actions listRecentMessageIds error:", err);
         return new Response(
@@ -551,6 +602,98 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    } else if (action === "draft") {
+      // Create or update a draft
+      const { to, cc = [], bcc = [], subject = "", text = "", html = "", draftId } = body as {
+        to?: string[];
+        cc?: string[];
+        bcc?: string[];
+        subject?: string;
+        text?: string;
+        html?: string;
+        draftId?: string;
+      };
+
+      if (!to || !Array.isArray(to) || to.length === 0) {
+        return new Response(JSON.stringify({ error: "'to' must be a non-empty array" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find gmail account
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (draft) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      // Build raw MIME message for draft
+      function base64UrlEncode(str: string) {
+        return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      const headers: string[] = [];
+      if (to.length) headers.push(`To: ${to.join(', ')}`);
+      if (cc.length) headers.push(`Cc: ${cc.join(', ')}`);
+      if (bcc.length) headers.push(`Bcc: ${bcc.join(', ')}`);
+      headers.push(`Subject: ${subject}`);
+      const contentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
+      headers.push(`Content-Type: ${contentType}`);
+      const bodyContent = html || text || '';
+      const rawMessage = `${headers.join('\r\n')}\r\n\r\n${bodyContent}`;
+      const raw = base64UrlEncode(rawMessage);
+
+      let draftResponse;
+      try {
+        if (draftId) {
+          // Update existing draft
+          draftResponse = await updateDraft(access_token, draftId, raw);
+        } else {
+          // Create new draft
+          draftResponse = await createDraft(access_token, raw);
+        }
+      } catch (err) {
+        console.error("gmail-actions draft error:", err);
+        return new Response(JSON.stringify({ error: "Failed to create/update draft." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ draft: true, id: draftResponse.id, message: draftResponse.message }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
