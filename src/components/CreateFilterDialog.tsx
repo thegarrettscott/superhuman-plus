@@ -30,7 +30,7 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [generatingFilter, setGeneratingFilter] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiAnalysis, setAiAnalysis] = useState("");
 
   // Reset form when dialog opens/closes or template changes
   useEffect(() => {
@@ -40,10 +40,10 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
       setSubjectCondition("");
       setTags([]);
       setDescription("");
+      setAiAnalysis("");
       
       // Generate intelligent AI prompt based on email analysis
       const intelligentPrompt = generateIntelligentPrompt(templateEmail);
-      setAiPrompt(intelligentPrompt);
       
       // Auto-generate filter with AI immediately
       generateFilterWithPrompt(intelligentPrompt);
@@ -55,7 +55,7 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
       setSubjectCondition("");
       setTags([]);
       setNewTag("");
-      setAiPrompt("");
+      setAiAnalysis("");
     }
   }, [open, templateEmail]);
 
@@ -122,10 +122,13 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
         // Handle new actions structure
         const actions = filter.actions || {};
         setTags(actions.add_tags || []);
+        
+        // Store the AI's reasoning for display
+        setAiAnalysis(filter.description || "AI has analyzed this email and created an appropriate filter.");
 
         toast({
-          title: "Filter generated",
-          description: "Review and adjust the filter settings below, then save."
+          title: "Filter analyzed",
+          description: "Review the generated filter and make any adjustments needed."
         });
       }
     } catch (error: any) {
@@ -140,15 +143,8 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
   };
 
   const generateFilter = async () => {
-    if (!aiPrompt.trim()) {
-      toast({
-        title: "Prompt required",
-        description: "Please enter a description of the filter you want to create."
-      });
-      return;
-    }
-
-    await generateFilterWithPrompt(aiPrompt);
+    // This function is no longer needed as we auto-generate
+    // Keeping for potential future use
   };
 
   const addTag = () => {
@@ -234,26 +230,27 @@ export function CreateFilterDialog({ open, onOpenChange, templateEmail }: Create
             </div>
           )}
 
-          {/* AI Generation Section */}
-          <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-            <Label>AI Filter Generation</Label>
-            <p className="text-sm text-muted-foreground">
-              Describe how you want to filter emails like this one.
-            </p>
-            <Textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Describe your filter requirements..."
-              rows={3}
-            />
-            <Button 
-              onClick={generateFilter} 
-              disabled={generatingFilter}
-              className="w-full"
-            >
-              {generatingFilter ? "Generating..." : "Generate Filter with AI"}
-            </Button>
-          </div>
+          {/* AI Analysis Display */}
+          {aiAnalysis && (
+            <div className="space-y-3 p-4 border rounded-lg bg-muted/10">
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">AI Filter Analysis</p>
+                  <p className="text-sm text-muted-foreground mt-1">{aiAnalysis}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {generatingFilter && (
+            <div className="space-y-3 p-4 border rounded-lg bg-muted/10">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-muted-foreground">Analyzing email and generating filter...</p>
+              </div>
+            </div>
+          )}
 
           {/* Manual Filter Configuration */}
           <div className="space-y-4">
