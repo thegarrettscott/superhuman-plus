@@ -554,7 +554,50 @@ export default function EmailFilters() {
   );
 }
 
-function FilterDialog({ 
+function CollapsibleFilterSection({
+  title,
+  value,
+  onChange,
+  placeholder,
+  rows
+}: {
+  title: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  rows: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+        >
+          <Label className="cursor-pointer">{title} (JSON)</Label>
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={rows}
+          className="font-mono text-xs"
+          placeholder={placeholder}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function FilterDialog({
   open, 
   onOpenChange, 
   filter, 
@@ -810,48 +853,5 @@ function TagDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function CollapsibleFilterSection({
-  title,
-  value,
-  onChange,
-  placeholder,
-  rows
-}: {
-  title: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  rows: number;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
-        >
-          <Label className="cursor-pointer">{title} (JSON)</Label>
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2">
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={rows}
-          className="font-mono text-xs"
-          placeholder={placeholder}
-        />
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
