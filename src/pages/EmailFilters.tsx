@@ -13,6 +13,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
+const setSeo = (title: string, description: string) => {
+  document.title = title;
+  const metaDesc = document.querySelector('meta[name="description"]') || (() => {
+    const m = document.createElement('meta');
+    m.setAttribute('name', 'description');
+    document.head.appendChild(m);
+    return m;
+  })();
+  metaDesc.setAttribute('content', description);
+};
+
 interface EmailFilter {
   id: string;
   name: string;
