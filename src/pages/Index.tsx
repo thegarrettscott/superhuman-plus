@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Archive, Mail, Reply, Send, Star, StarOff, X, Filter, Plus } from "lucide-react";
+import { CreateFilterDialog } from "@/components/CreateFilterDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { EmailAutocomplete } from "@/components/EmailAutocomplete";
 import { ComposeDialog } from "@/components/ComposeDialog";
@@ -400,47 +401,11 @@ const Index = () => {
       }
     });
 
-    // Auto-import only on first page if empty
-    if (mapped.length === 0 && !autoImported && page === 1) {
-      setAutoImported(true);
-      const {
-        data: accRows,
-        error: accErr
-      } = await supabase.from('email_accounts').select('id').limit(1);
-      if (accErr) {
-        console.warn('email_accounts check error', accErr);
-        throw accErr;
-      }
-      if (accRows && accRows.length > 0) {
-        toast({
-          title: 'Importing…',
-          description: 'Fetching your latest emails.'
-        });
-        const {
-          data: impData,
-          error: impError
-        } = await supabase.functions.invoke('gmail-actions', {
-          body: {
-            action: 'import',
-            max: 100
-          }
-        });
-        if (impError) {
-          toast({
-            title: 'Import failed',
-            description: impError.message
-          });
-          throw impError;
-        } else {
-          toast({
-            title: 'Imported',
-            description: `${impData?.imported ?? 0} messages imported.`
-          });
-          // Recursively reload after import
-          return await loadEmailsWithCache(1, targetMailbox);
-        }
-      }
-    }
+    // Auto-import disabled for now
+    // if (mapped.length === 0 && !autoImported && page === 1) {
+    //   setAutoImported(true);
+    //   // ... auto-import logic commented out
+    // }
     return {
       emails: mapped,
       total
@@ -1739,37 +1704,11 @@ const Index = () => {
         </div>}
 
         {/* Create Filter Dialog */}
-        <Dialog open={showCreateFilter} onOpenChange={setShowCreateFilter}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Filter from Email</DialogTitle>
-            </DialogHeader>
-            {createFilterEmail && (
-              <div className="space-y-4">
-                <div className="p-3 bg-muted rounded-md">
-                  <p className="text-sm font-medium">{createFilterEmail.subject}</p>
-                  <p className="text-xs text-muted-foreground">From: {createFilterEmail.from}</p>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  This will create a filter that matches emails similar to this one.
-                </div>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateFilter(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => {
-                if (createFilterEmail) {
-                  navigate(`/filters?from=${encodeURIComponent(createFilterEmail.from)}&subject=${encodeURIComponent(createFilterEmail.subject)}`);
-                }
-                setShowCreateFilter(false);
-              }}>
-                Create Filter
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CreateFilterDialog 
+          open={showCreateFilter} 
+          onOpenChange={setShowCreateFilter}
+          templateEmail={createFilterEmail}
+        />
     </div>;
 };
 function SidebarItem({
