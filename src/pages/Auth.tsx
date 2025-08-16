@@ -28,7 +28,7 @@ const setSeo = (title: string, description: string) => {
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'signin'|'signup'>('signin');
+  const [mode, setMode] = useState<'signin'|'signup'|'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,7 +54,7 @@ export default function Auth() {
         if (error) throw error;
         toast({ title: 'Signed in', description: 'Welcome back!' });
         navigate('/mail');
-      } else {
+      } else if (mode === 'signup') {
         const redirectUrl = `${window.location.origin}/mail`;
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -68,6 +68,17 @@ export default function Auth() {
         } else {
           toast({ title: 'Check your email', description: 'Confirm your address to finish signup.' });
         }
+      } else if (mode === 'forgot') {
+        const redirectUrl = `${window.location.origin}/auth`;
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: redirectUrl
+        });
+        if (error) throw error;
+        toast({ 
+          title: 'Reset email sent', 
+          description: 'Check your email for a password reset link.' 
+        });
+        setMode('signin');
       }
     } catch (err: any) {
       toast({ title: 'Auth error', description: err?.message || 'Something went wrong' });
@@ -90,8 +101,14 @@ export default function Auth() {
       <main className="container grid place-items-center py-12">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>{mode === 'signin' ? 'Sign in' : 'Create account'}</CardTitle>
-            <CardDescription>Use email and password to continue.</CardDescription>
+            <CardTitle>
+              {mode === 'signin' && 'Sign in'}
+              {mode === 'signup' && 'Create account'}
+              {mode === 'forgot' && 'Reset password'}
+            </CardTitle>
+            <CardDescription>
+              {mode === 'forgot' ? 'Enter your email to receive a reset link.' : 'Use email and password to continue.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>
@@ -99,13 +116,33 @@ export default function Auth() {
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
+              {mode !== 'forgot' && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </div>
+              )}
               <Button className="w-full" type="submit" disabled={loading}>
-                {loading ? 'Please wait…' : (mode === 'signin' ? 'Sign in' : 'Create account')}
+                {loading ? 'Please wait…' : (
+                  mode === 'signin' ? 'Sign in' : 
+                  mode === 'signup' ? 'Create account' : 
+                  'Send reset email'
+                )}
               </Button>
+              {mode === 'signin' && (
+                <div className="text-center">
+                  <Button variant="link" type="button" onClick={() => setMode('forgot')} className="text-sm">
+                    Forgot password?
+                  </Button>
+                </div>
+              )}
+              {mode === 'forgot' && (
+                <div className="text-center">
+                  <Button variant="link" type="button" onClick={() => setMode('signin')} className="text-sm">
+                    Back to sign in
+                  </Button>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
