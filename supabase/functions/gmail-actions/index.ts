@@ -98,6 +98,33 @@ async function createLabel(access_token: string, labelName: string) {
   return res.json();
 }
 
+async function getGmailSignature(access_token: string) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/me`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}` } });
+  if (!res.ok) throw new Error(`Get signature failed: ${await res.text()}`);
+  const json = await res.json();
+  return {
+    signature: json.signature || '',
+    signatureHtml: json.signature || ''
+  };
+}
+
+async function updateGmailSignature(access_token: string, signature: string) {
+  const url = `https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/me`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 
+      Authorization: `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      signature: signature
+    })
+  });
+  if (!res.ok) throw new Error(`Update signature failed: ${await res.text()}`);
+  return res.json();
+}
+
 function headerVal(headers: any[], name: string) {
   const h = headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase());
   return h?.value || "";
@@ -777,6 +804,129 @@ serve(async (req) => {
       } catch (err) {
         console.error("gmail-actions create-label error:", err);
         return new Response(JSON.stringify({ error: "Failed to create label in Gmail." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (action === "sync-signature") {
+      // Sync signature from Gmail
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (sync-signature) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      try {
+        const signatureData = await getGmailSignature(access_token);
+        
+        // Store the signature in our database
+        await admin.from("email_accounts").update({
+          signature_text: signatureData.signature,
+          signature_html: signatureData.signatureHtml,
+        }).eq("id", account.id);
+
+        return new Response(
+          JSON.stringify({ synced: true, signature: signatureData }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err) {
+        console.error("gmail-actions sync-signature error:", err);
+        return new Response(JSON.stringify({ error: "Failed to sync signature from Gmail." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (action === "update-signature") {
+      // Update signature both locally and in Gmail
+      const { signature } = body as { signature?: string };
+      if (signature === undefined) {
+        return new Response(JSON.stringify({ error: "Signature is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: account, error: accErr } = await admin
+        .from("email_accounts")
+        .select("id, refresh_token")
+        .eq("user_id", user.id)
+        .eq("provider", "gmail")
+        .maybeSingle();
+      if (accErr) throw accErr;
+      if (!account || !account.refresh_token) {
+        return new Response(JSON.stringify({ error: "No Gmail account connected or missing refresh token" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Refresh token
+      let access_token: string;
+      let expires_in = 0;
+      try {
+        const token = await refreshAccessToken(account.refresh_token);
+        access_token = token.access_token as string;
+        expires_in = (token.expires_in ?? 0) as number;
+      } catch (err) {
+        console.error("gmail-actions refreshAccessToken (update-signature) error:", err);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store latest access token
+      await admin
+        .from("email_accounts")
+        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+        .eq("id", account.id);
+
+      try {
+        // Update signature in Gmail
+        await updateGmailSignature(access_token, signature);
+        
+        // Store the signature in our database
+        await admin.from("email_accounts").update({
+          signature_text: signature,
+          signature_html: signature,
+        }).eq("id", account.id);
+
+        return new Response(
+          JSON.stringify({ updated: true, signature }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err) {
+        console.error("gmail-actions update-signature error:", err);
+        return new Response(JSON.stringify({ error: "Failed to update signature in Gmail." }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

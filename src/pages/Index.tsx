@@ -89,6 +89,9 @@ const Index = () => {
   const [footerBody, setFooterBody] = useState("");
   const [showCreateInbox, setShowCreateInbox] = useState(false);
   const [newInboxName, setNewInboxName] = useState('');
+  const [showSignatureSettings, setShowSignatureSettings] = useState(false);
+  const [signature, setSignature] = useState('');
+  const [newSignature, setNewSignature] = useState('');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentAccount, setCurrentAccount] = useState<string | null>(null);
   const PAGE_SIZE = 50;
@@ -917,6 +920,10 @@ const Index = () => {
       });
       return;
     }
+    
+    // Add signature to body if it exists
+    const bodyWithSignature = signature ? `${footerBody}\n\n${signature}` : footerBody;
+    
     try {
       const {
         error
@@ -925,7 +932,7 @@ const Index = () => {
           action: 'send',
           to: toList,
           subject: footerSubject,
-          text: footerBody
+          text: bodyWithSignature
         }
       });
       if (error) {
@@ -1053,6 +1060,37 @@ const Index = () => {
       });
     }
   };
+
+  const handleUpdateSignature = async () => {
+    try {
+      const { error } = await supabase.functions.invoke("gmail-actions", {
+        body: {
+          action: "update-signature",
+          signature: newSignature
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Update failed",
+          description: error.message
+        });
+        return;
+      }
+
+      setSignature(newSignature);
+      setShowSignatureSettings(false);
+      toast({
+        title: "Signature updated",
+        description: "Your email signature has been updated."
+      });
+    } catch (e) {
+      toast({
+        title: "Update failed",
+        description: "Unexpected error updating signature."
+      });
+    }
+  };
   const switchMailbox = async (newMailbox: string) => {
     setMailbox(newMailbox);
     setCurrentPage(1);
@@ -1107,11 +1145,24 @@ const Index = () => {
             if (isMobile) setMobileMenuOpen(false);
           }} />)}
        </nav>
-       <div className="px-3 pb-3">
-         <div className="rounded-md border p-3 text-sm text-muted-foreground">
-           Shortcuts: C compose, E archive, J/K navigate, Cmd/Ctrl+K commands.
-         </div>
-       </div>
+        <div className="px-3 pb-3">
+          <div className="rounded-md border p-3 text-sm text-muted-foreground space-y-2">
+            <div>
+              Shortcuts: C compose, E archive, J/K navigate, Cmd/Ctrl+K commands.
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs" 
+              onClick={() => {
+                setNewSignature(signature);
+                setShowSignatureSettings(true);
+              }}
+            >
+              Email Signature
+            </Button>
+          </div>
+        </div>
      </aside>
    );
    
@@ -1366,6 +1417,37 @@ const Index = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      {/* Signature Settings Dialog */}
+      <Dialog open={showSignatureSettings} onOpenChange={setShowSignatureSettings}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Email Signature</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Signature</label>
+              <textarea
+                placeholder="Your email signature..."
+                value={newSignature}
+                onChange={(e) => setNewSignature(e.target.value)}
+                className="w-full p-3 text-sm border rounded-md resize-none h-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                This signature will be automatically added to all outgoing emails.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSignatureSettings(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateSignature}>
+              Update Signature
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Inbox Dialog */}
       <Dialog open={showCreateInbox} onOpenChange={setShowCreateInbox}>

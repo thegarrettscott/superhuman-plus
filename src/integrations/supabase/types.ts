@@ -25,6 +25,8 @@ export type Database = {
           provider: string
           refresh_token: string
           scope: string | null
+          signature_html: string | null
+          signature_text: string | null
           token_type: string | null
           updated_at: string
           user_id: string
@@ -39,6 +41,8 @@ export type Database = {
           provider?: string
           refresh_token: string
           scope?: string | null
+          signature_html?: string | null
+          signature_text?: string | null
           token_type?: string | null
           updated_at?: string
           user_id: string
@@ -53,6 +57,8 @@ export type Database = {
           provider?: string
           refresh_token?: string
           scope?: string | null
+          signature_html?: string | null
+          signature_text?: string | null
           token_type?: string | null
           updated_at?: string
           user_id?: string

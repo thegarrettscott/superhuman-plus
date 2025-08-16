@@ -14,6 +14,7 @@ interface ComposeDialogProps {
   initialTo?: string;
   initialSubject?: string;
   initialBody?: string;
+  signature?: string;
 }
 
 export function ComposeDialog({
@@ -21,7 +22,8 @@ export function ComposeDialog({
   onOpenChange,
   initialTo,
   initialSubject,
-  initialBody
+  initialBody,
+  signature = ""
 }: ComposeDialogProps) {
   const toRef = useRef<HTMLInputElement>(null);
   const [to, setTo] = useState("");
@@ -131,6 +133,9 @@ export function ComposeDialog({
       // Upload attachments first
       const attachmentPaths = await uploadAttachments();
 
+      // Add signature to body if it exists
+      const bodyWithSignature = signature ? `${body}\n\n${signature}` : body;
+
       const { data, error } = await supabase.functions.invoke('gmail-actions', {
         body: {
           action: 'send',
@@ -138,7 +143,7 @@ export function ComposeDialog({
           cc: ccList.length > 0 ? ccList : undefined,
           bcc: bccList.length > 0 ? bccList : undefined,
           subject,
-          text: body,
+          text: bodyWithSignature,
           attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined
         }
       });
@@ -185,6 +190,9 @@ export function ComposeDialog({
     setSending(true);
     
     try {
+      // Add signature to body if it exists
+      const bodyWithSignature = signature ? `${body}\n\n${signature}` : body;
+
       const { data, error } = await supabase.functions.invoke('gmail-actions', {
         body: {
           action: 'draft',
@@ -192,7 +200,7 @@ export function ComposeDialog({
           cc: ccList.length > 0 ? ccList : undefined,
           bcc: bccList.length > 0 ? bccList : undefined,
           subject,
-          text: body
+          text: bodyWithSignature
         }
       });
 
