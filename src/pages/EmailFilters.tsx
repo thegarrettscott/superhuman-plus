@@ -554,49 +554,6 @@ export default function EmailFilters() {
   );
 }
 
-function CollapsibleFilterSection({
-  title,
-  value,
-  onChange,
-  placeholder,
-  rows
-}: {
-  title: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  rows: number;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
-        >
-          <Label className="cursor-pointer">{title} (JSON)</Label>
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2">
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={rows}
-          className="font-mono text-xs"
-          placeholder={placeholder}
-        />
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 function FilterDialog({
   open, 
   onOpenChange, 
@@ -757,20 +714,46 @@ function FilterDialog({
               <Label>Active</Label>
             </div>
           </div>
-          <CollapsibleFilterSection
-            title="Conditions"
-            value={formData.conditions}
-            onChange={(value) => setFormData(prev => ({ ...prev, conditions: value }))}
-            placeholder='{"sender_domain": "company.com", "keywords": ["urgent"], "subject_contains": "meeting"}'
-            rows={6}
-          />
-          <CollapsibleFilterSection
-            title="Actions"
-            value={formData.actions}
-            onChange={(value) => setFormData(prev => ({ ...prev, actions: value }))}
-            placeholder='{"add_tags": ["work"], "add_labels": ["CATEGORY_PERSONAL"]}'
-            rows={4}
-          />
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+              >
+                <Label className="cursor-pointer">Conditions (JSON)</Label>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2">
+              <Textarea
+                value={formData.conditions}
+                onChange={(e) => setFormData(prev => ({ ...prev, conditions: e.target.value }))}
+                rows={6}
+                className="font-mono text-xs"
+                placeholder='{"sender_domain": "company.com", "keywords": ["urgent"], "subject_contains": "meeting"}'
+              />
+            </CollapsibleContent>
+          </Collapsible>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                className="flex w-full justify-between p-0 font-normal hover:bg-transparent"
+              >
+                <Label className="cursor-pointer">Actions (JSON)</Label>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2">
+              <Textarea
+                value={formData.actions}
+                onChange={(e) => setFormData(prev => ({ ...prev, actions: e.target.value }))}
+                rows={4}
+                className="font-mono text-xs"
+                placeholder='{"add_tags": ["work"], "add_labels": ["CATEGORY_PERSONAL"]}'
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
