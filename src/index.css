@@ -1,44 +1,148 @@
+/* Superhuman-inspired Design System */
+@layer reset, tokens, base, utilities, components, overrides;
+
+/* Tailwind CSS imports */
 @tailwind base;
-@tailwind components;
+@tailwind components;  
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* 1) Reset */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; line-height: 1.5; }
+  img, svg, video, canvas { max-width: 100%; display: block; }
+  input, button, textarea, select { font: inherit; }
+}
 
-@layer base {
+/* 2) Design System Tokens */
+@layer tokens {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Color System */
+    --hue-accent: 252; /* electric indigo */
+    --c-bg: #0f1115;      /* dark canvas */
+    --c-surface: #151823; /* elevated */
+    --c-muted: #222636;   /* subtle blocks */
+    --c-border: #2a2f42;
+    --c-text: #e6e9f2;
+    --c-text-dim: #a9b0c7;
+    --c-accent: hsl(var(--hue-accent) 83% 60%);
+    --c-accent-600: hsl(var(--hue-accent) 80% 55%);
+    --c-accent-700: hsl(var(--hue-accent) 75% 50%);
+    --c-success: #22c55e;
+    --c-danger: #ef4444;
+    --c-warning: #f59e0b;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Elevation */
+    --elev-0: 0 0 0 rgba(0,0,0,0);
+    --elev-1: 0 4px 12px rgba(0,0,0,.25);
+    --elev-2: 0 8px 24px rgba(0,0,0,.28);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Spacing – 4px grid */
+    --space-1: .25rem;  /* 4 */
+    --space-2: .5rem;   /* 8 */
+    --space-3: .75rem;  /* 12 */
+    --space-4: 1rem;    /* 16 */
+    --space-5: 1.25rem; /* 20 */
+    --space-6: 1.5rem;  /* 24 */
+    --space-8: 2rem;    /* 32 */
+    --space-10: 2.5rem; /* 40 */
+    --space-12: 3rem;   /* 48 */
 
-    /* Brand accent tuned for a premium, fast email vibe */
+    /* Border Radius */
+    --r-1: .25rem; 
+    --r-2: .5rem; 
+    --r-3: .75rem; 
+    --r-4: 1rem;
+
+    /* Typography */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    --fs-12: .75rem; 
+    --fs-13: .8125rem; 
+    --fs-14: .875rem; 
+    --fs-16: 1rem; 
+    --fs-18: 1.125rem; 
+    --fs-20: 1.25rem; 
+    --fs-24: 1.5rem; 
+    --fs-32: 2rem;
+    --lh-tight: 1.2; 
+    --lh-default: 1.5; 
+    --lh-loose: 1.7;
+
+    /* Motion */
+    --ease: cubic-bezier(.2,.7,.2,1);
+    --dur-1: 120ms; 
+    --dur-2: 200ms; 
+    --dur-3: 320ms;
+
+    /* Layout */
+    --container: 1120px; /* reading width */
+    --measure: 68ch;     /* ideal text measure */
+
+    /* Legacy Tailwind Variables for Compatibility */
+    --background: 15 11% 7%;
+    --foreground: 225 28% 89%;
+    --card: 15 11% 7%;
+    --card-foreground: 225 28% 89%;
+    --popover: 15 11% 7%;
+    --popover-foreground: 225 28% 89%;
     --primary: 252 83% 60%;
     --primary-foreground: 0 0% 100%;
+    --secondary: 220 27% 20%;
+    --secondary-foreground: 225 28% 89%;
+    --muted: 220 27% 20%;
+    --muted-foreground: 225 12% 67%;
+    --accent: 220 27% 20%;
+    --accent-foreground: 225 28% 89%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 225 28% 89%;
+    --border: 220 27% 25%;
+    --input: 220 27% 25%;
+    --ring: 252 83% 60%;
+    --radius: 0.75rem;
+    --sidebar-background: 220 27% 15%;
+    --sidebar-foreground: 225 28% 89%;
+    --sidebar-primary: 252 83% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 27% 20%;
+    --sidebar-accent-foreground: 225 28% 89%;
+    --sidebar-border: 220 27% 25%;
+    --sidebar-ring: 252 83% 60%;
 
+    /* Enhanced gradients and shadows */
+    --primary-glow: 252 94% 67%;
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --shadow-elegant: 0 10px 30px hsl(var(--primary) / 0.22);
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Light theme overrides */
+  :root.theme-light {
+    --c-bg: #f8f9fb;
+    --c-surface: #ffffff;
+    --c-muted: #f1f4f9;
+    --c-border: #e3e8f2;
+    --c-text: #0b1020;
+    --c-text-dim: #58607a;
+    --elev-1: 0 4px 12px rgba(0,0,0,.08);
+    --elev-2: 0 8px 24px rgba(0,0,0,.12);
+
+    /* Light mode Tailwind variables */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-
-    --radius: 0.75rem;
-
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -46,61 +150,151 @@ All colors MUST be HSL.
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-
-    /* Extras for beautiful motion and depth */
-    --primary-glow: 252 94% 67%;
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
     --shadow-elegant: 0 10px 30px hsl(var(--primary) / 0.18);
-    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Keep brand accent in dark for consistency */
-    --primary: 252 83% 60%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-
-    --primary-glow: 252 94% 67%;
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --shadow-elegant: 0 10px 30px hsl(var(--primary) / 0.22);
-    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+/* 3) Base Styles */
+@layer base {
+  html, body { height: 100%; }
+  body { 
+    font-family: var(--font-sans); 
+    background: var(--c-bg); 
+    color: var(--c-text); 
+  }
+  a { 
+    color: var(--c-accent); 
+    text-decoration: none; 
+  }
+  a:hover { 
+    text-decoration: underline; 
+  }
+  
+  /* Focus states */
+  :focus-visible { 
+    outline: 2px solid var(--c-accent); 
+    outline-offset: 2px; 
+  }
+}
+
+/* 4) Layout Primitives */
+@layer utilities {
+  /* Container */
+  .container { width: min(100% - 2*var(--space-6), var(--container)); margin-inline: auto; }
+
+  /* Stack: vertical rhythm */
+  .stack { display: flex; flex-direction: column; gap: var(--space-4); }
+  .stack--sm { gap: var(--space-3); }
+  .stack--lg { gap: var(--space-6); }
+
+  /* Cluster: wrap row with gap & alignment */
+  .cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  .cluster--justify { justify-content: space-between; }
+
+  /* Sidebar: 2-col with min sidebar */
+  .sidebar { display: grid; grid-template-columns: minmax(220px, 26ch) 1fr; gap: var(--space-6); }
+  @media (max-width: 900px) { .sidebar { grid-template-columns: 1fr; } }
+
+  /* Switcher: auto columns up to N */
+  .switcher { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+  /* Grid (12-col) */
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--space-4); }
+  .col-3 { grid-column: span 3; } .col-4 { grid-column: span 4; } .col-6 { grid-column: span 6; } .col-12 { grid-column: 1 / -1; }
+  @media (max-width: 900px) { .col-3,.col-4,.col-6 { grid-column: 1 / -1; } }
+
+  /* Cover: center a focal element */
+  .cover { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-8); }
+
+  /* Spacing utilities */
+  .mt-4 { margin-top: var(--space-4); } .mb-4 { margin-bottom: var(--space-4); }
+  .px-4 { padding-inline: var(--space-4); } .py-4 { padding-block: var(--space-4); }
+  .hide-sm { display: block; } @media (max-width: 900px) { .hide-sm { display: none; } }
+  .text-dim { color: var(--c-text-dim); }
+}
+
+/* 5) Typography System */
+@layer components {
+  .text-title-xl { font-size: var(--fs-32); line-height: var(--lh-tight); letter-spacing: -0.01em; }
+  .text-title { font-size: var(--fs-24); line-height: var(--lh-tight); }
+  .text-subtitle { font-size: var(--fs-18); color: var(--c-text-dim); }
+  .text-body { font-size: var(--fs-14); line-height: var(--lh-default); }
+  .text-caption { font-size: var(--fs-12); color: var(--c-text-dim); }
+  .measure { max-width: var(--measure); }
+}
+
+/* 6) Surface, Card, and Elevation */
+@layer components {
+  .surface { 
+    background: var(--c-surface); 
+    border: 1px solid var(--c-border); 
+    border-radius: var(--r-3); 
+    box-shadow: var(--elev-1); 
+  }
+  .card { 
+    background: var(--c-surface); 
+    border: 1px solid var(--c-border); 
+    border-radius: var(--r-3); 
+    box-shadow: var(--elev-1);
+    padding: var(--space-6); 
+  }
+  .card--muted { 
+    background: var(--c-muted); 
+    box-shadow: var(--elev-0); 
+  }
+}
+
+/* 7) Enhanced Buttons */
+@layer components {
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5ch;
+    height: 36px; padding: 0 var(--space-4);
+    border-radius: var(--r-2); border: 1px solid transparent;
+    font-size: var(--fs-14); font-weight: 600; letter-spacing: .01em;
+    transition: transform var(--dur-1) var(--ease), background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+    cursor: pointer; user-select: none;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn--primary { background: var(--c-accent); color: white; }
+  .btn--primary:hover { background: var(--c-accent-600); }
+  .btn--primary:active { background: var(--c-accent-700); }
+
+  .btn--ghost { background: transparent; border-color: var(--c-border); color: var(--c-text); }
+  .btn--ghost:hover { background: var(--c-muted); }
+
+  .btn--danger { background: var(--c-danger); color: white; }
+}
+
+/* 8) Navigation & App Chrome */
+@layer components {
+  .nav-item { 
+    display:flex; align-items:center; gap: var(--space-3); 
+    padding: var(--space-3) var(--space-4); border-radius: var(--r-2); 
+    color: var(--c-text-dim); text-decoration: none;
+    transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .nav-item:hover { background: var(--c-muted); color: var(--c-text); }
+  .nav-item[aria-current="page"] { 
+    color: var(--c-text); font-weight: 600; position: relative; 
+  }
+  .nav-item[aria-current="page"]::before { 
+    content:""; position:absolute; inset-inline-start:0; top: 8px; bottom:8px; 
+    width: 2px; background: var(--c-accent); border-radius: 2px; 
+  }
+}
+
+/* 9) Motion & Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * { 
+    animation-duration: 0.01ms !important; 
+    animation-iteration-count: 1 !important; 
+    transition-duration: 0.01ms !important; 
+  }
+}
+
+/* Keep existing Tailwind functionality */
 @layer base {
   * {
     @apply border-border;
