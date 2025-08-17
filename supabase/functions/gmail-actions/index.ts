@@ -213,6 +213,7 @@ serve(async (req) => {
     const maxRequested = typeof body.max === "number" ? body.max : Number(body.max);
     const max = Math.min(Number.isFinite(maxRequested) ? maxRequested : 20, 100);
     if (action === "import") {
+      // Queue background import job and return immediately
       // Find gmail account
       const { data: account, error: accErr } = await admin
         .from("email_accounts")
@@ -222,91 +223,148 @@ serve(async (req) => {
         .maybeSingle();
       if (accErr) throw accErr;
       if (!account) return new Response(JSON.stringify({ error: "No Gmail account connected" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
       if (!account.refresh_token) return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-      // Refresh token
-      let access_token: string;
-      let expires_in = 0;
-      try {
-        const token = await refreshAccessToken(account.refresh_token);
-        access_token = token.access_token as string;
-        expires_in = (token.expires_in ?? 0) as number;
-      } catch (err) {
-        console.error("gmail-actions refreshAccessToken error:", err);
-        return new Response(
-          JSON.stringify({ error: "Failed to refresh Google access token. Please reconnect Gmail." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      // Create sync job + initial sync status row
+      const { data: job, error: jobErr } = await admin
+        .from('sync_jobs')
+        .insert({
+          user_id: user.id,
+          account_id: account.id,
+          job_type: 'initial_import',
+          status: 'running',
+          started_at: new Date().toISOString(),
+          metadata: { mailbox, max }
+        })
+        .select('id')
+        .single();
+      if (jobErr) throw jobErr;
 
-      // Store latest access token
-      await admin
-        .from("email_accounts")
-        .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
-        .eq("id", account.id);
+      // Create status tracker row (used by UI component SyncProgress)
+      const { error: statusErr } = await admin
+        .from('sync_status')
+        .insert({
+          user_id: user.id,
+          account_id: account.id,
+          sync_type: mailbox === 'drafts' ? 'drafts' : (mailbox === 'sent' ? 'sent' : 'inbox'),
+          status: 'running',
+          total_items: 0,
+          synced_items: 0,
+          started_at: new Date().toISOString(),
+        });
+      if (statusErr) console.warn('sync_status insert warn:', statusErr);
 
-      // Fetch recent messages based on mailbox
-      let ids: string[] = [];
-      let drafts: any[] = [];
-      try {
-        if (mailbox === "drafts") {
-          console.log(`Fetching ${max} drafts for user ${user.id}`);
-          drafts = await listDrafts(access_token, max);
-          ids = drafts.map(d => d.messageId);
-        } else {
-          const labelId = mailbox === "sent" ? "SENT" : "INBOX";
-          console.log(`Fetching ${max} messages from ${labelId} for user ${user.id}`);
-          ids = await listRecentMessageIds(access_token, max, labelId);
+      // Background task: refresh token, list ids, fetch messages, upsert DB, update progress
+      const backgroundTask = async () => {
+        try {
+          // Refresh token
+          const token = await refreshAccessToken(account.refresh_token);
+          const access_token = token.access_token as string;
+          const expires_in = (token.expires_in ?? 0) as number;
+
+          // Store latest access token
+          await admin
+            .from("email_accounts")
+            .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
+            .eq("id", account.id);
+
+          // List message/draft ids
+          let ids: string[] = [];
+          if (mailbox === 'drafts') {
+            const drafts = await listDrafts(access_token, max);
+            ids = drafts.map(d => d.messageId);
+          } else {
+            const labelId = mailbox === 'sent' ? 'SENT' : 'INBOX';
+            ids = await listRecentMessageIds(access_token, max, labelId);
+          }
+
+          // Update total
+          await admin
+            .from('sync_status')
+            .update({ total_items: ids.length, status: 'running' })
+            .eq('user_id', user.id)
+            .eq('account_id', account.id)
+            .eq('sync_type', mailbox === 'drafts' ? 'drafts' : (mailbox === 'sent' ? 'sent' : 'inbox'));
+
+          // Fetch each message
+          let synced = 0;
+          for (const id of ids) {
+            try {
+              const m = await getMessage(access_token, id);
+              const row = {
+                user_id: user.id,
+                account_id: account.id,
+                gmail_message_id: m.id,
+                thread_id: m.threadId || null,
+                snippet: m.snippet || null,
+                label_ids: m.labelIds || null,
+                subject: m.subject,
+                from_address: m.from,
+                to_addresses: m.to,
+                cc_addresses: m.cc,
+                bcc_addresses: m.bcc,
+                internal_date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
+                is_read: !(m.labelIds || []).includes('UNREAD'),
+                body_text: m.body_text || null,
+                body_html: m.body_html || null,
+              };
+              // Upsert by unique gmail_message_id per user
+              await admin.from('email_messages').delete()
+                .eq('user_id', user.id)
+                .eq('gmail_message_id', row.gmail_message_id);
+              await admin.from('email_messages').insert(row);
+              synced++;
+
+              // Throttle progress updates
+              if (synced % 5 === 0 || synced === ids.length) {
+                await admin
+                  .from('sync_status')
+                  .update({ synced_items: synced })
+                  .eq('user_id', user.id)
+                  .eq('account_id', account.id)
+                  .eq('sync_type', mailbox === 'drafts' ? 'drafts' : (mailbox === 'sent' ? 'sent' : 'inbox'));
+              }
+            } catch (e) {
+              console.error('Background fetch/insert error for id', id, e);
+            }
+          }
+
+          // Mark complete
+          await admin
+            .from('sync_status')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+            .eq('account_id', account.id)
+            .eq('sync_type', mailbox === 'drafts' ? 'drafts' : (mailbox === 'sent' ? 'sent' : 'inbox'));
+
+          await admin
+            .from('sync_jobs')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', job.id);
+        } catch (err) {
+          console.error('Background import failed:', err);
+          await admin
+            .from('sync_status')
+            .update({ status: 'failed', error_message: String(err), completed_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+            .eq('account_id', account.id)
+            .eq('sync_type', mailbox === 'drafts' ? 'drafts' : (mailbox === 'sent' ? 'sent' : 'inbox'));
+          await admin
+            .from('sync_jobs')
+            .update({ status: 'failed', error_message: String(err), completed_at: new Date().toISOString() })
+            .eq('id', job.id);
         }
-      } catch (err) {
-        console.error("gmail-actions listRecentMessageIds error:", err);
-        return new Response(
-          JSON.stringify({ error: "Failed to list Gmail messages. Please try importing again." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      // Fetch each message (tolerate partial failures)
-      const results = await Promise.allSettled(ids.map((id: string) => getMessage(access_token, id)));
-      const messages = results
-        .filter((r) => r.status === "fulfilled")
-        .map((r: PromiseFulfilledResult<any>) => (r as PromiseFulfilledResult<any>).value);
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (messages.length === 0) {
-        console.error("gmail-actions getMessage failed for all ids");
-        return new Response(
-          JSON.stringify({ error: "Failed to fetch Gmail messages. Please try again." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      };
 
-      // Prepare rows
-      const rows = messages.map((m) => ({
-        user_id: user.id,
-        account_id: account.id,
-        gmail_message_id: m.id,
-        thread_id: m.threadId || null,
-        snippet: m.snippet || null,
-        label_ids: m.labelIds || null,
-        subject: m.subject,
-        from_address: m.from,
-        to_addresses: m.to,
-        cc_addresses: m.cc,
-        bcc_addresses: m.bcc,
-        internal_date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
-        is_read: !(m.labelIds || []).includes("UNREAD"),
-        body_text: m.body_text || null,
-        body_html: m.body_html || null,
-      }));
+      // Kick off background task
+      // @ts-ignore - EdgeRuntime is available in the Edge Functions environment
+      // deno-lint-ignore no-undef
+      EdgeRuntime.waitUntil(backgroundTask());
 
-      // De-dup by gmail_message_id (delete then insert)
-      if (rows.length > 0) {
-        await admin.from("email_messages").delete().in("gmail_message_id", rows.map((r) => r.gmail_message_id)).eq("user_id", user.id);
-        const { error: insErr } = await admin.from("email_messages").insert(rows);
-        if (insErr) throw insErr;
-      }
-
-      return new Response(JSON.stringify({ imported: rows.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({ started: true, jobId: job.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     if (action === "modify") {
