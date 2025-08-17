@@ -57,21 +57,10 @@ export default function BackgroundSyncMonitor({
           return filtered;
         });
 
-        // Show completion notifications
+        // Only show completion notifications on component mount (not background syncs)
         if (payload.eventType === 'UPDATE') {
           if (job.status === 'completed') {
-            const mailbox = job.metadata?.mailbox || 'emails';
-            toast({
-              title: `${mailbox} sync completed`,
-              description: 'Your emails have been synced successfully.'
-            });
             onSyncComplete?.();
-          } else if (job.status === 'failed') {
-            toast({
-              title: 'Sync failed',
-              description: job.error_message || 'An error occurred during sync',
-              variant: 'destructive'
-            });
           }
         }
       }
@@ -111,17 +100,10 @@ export default function BackgroundSyncMonitor({
       if (sentError) {
         console.warn('Sent import failed:', sentError);
       }
-      toast({
-        title: 'Email sync started',
-        description: 'Your emails are being imported in the background. This may take a few minutes.'
-      });
+      // No toast for background sync
     } catch (error) {
       console.error('Failed to start import:', error);
-      toast({
-        title: 'Failed to start sync',
-        description: 'Please try again or check your Gmail connection.',
-        variant: 'destructive'
-      });
+      // Silent failure for background sync
       setIsInitialImportStarted(false);
     }
   };

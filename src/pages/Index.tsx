@@ -79,6 +79,7 @@ const Index = () => {
   const queryClient = useQueryClient();
   const [autoImported, setAutoImported] = useState(false);
   const [initialImportCompleted, setInitialImportCompleted] = useState(false);
+  const [showSyncUIOnLoad, setShowSyncUIOnLoad] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isImportingSent, setIsImportingSent] = useState(false);
   const [replyDraft, setReplyDraft] = useState<{
@@ -245,11 +246,13 @@ const Index = () => {
           });
           if (importError) {
             console.error('Failed to start sent email import:', importError);
-            toast({
-              title: 'Failed to start sent email import',
-              description: importError.message
-            });
-          } else {
+            if (showSyncUIOnLoad) {
+              toast({
+                title: 'Failed to start sent email import',
+                description: importError.message
+              });
+            }
+          } else if (showSyncUIOnLoad) {
             toast({
               title: 'Importing sent emails in background',
               description: 'This may take a moment...'
@@ -282,11 +285,13 @@ const Index = () => {
           });
           if (importError) {
             console.error('Failed to start drafts import:', importError);
-            toast({
-              title: 'Failed to start drafts import',
-              description: importError.message
-            });
-          } else {
+            if (showSyncUIOnLoad) {
+              toast({
+                title: 'Failed to start drafts import',
+                description: importError.message
+              });
+            }
+          } else if (showSyncUIOnLoad) {
             toast({
               title: 'Importing drafts in background',
               description: 'This may take a moment...'
@@ -1408,8 +1413,22 @@ const Index = () => {
            ? 'space-y-4' 
            : 'grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4'
        }`}>
-          {/* Background Sync Monitor */}
-          <div className={isMobile ? '' : 'col-span-full'}>
+          {/* Background Sync Monitor - Only show UI on initial load */}
+          {showSyncUIOnLoad && (
+            <div className={isMobile ? '' : 'col-span-full'}>
+              <BackgroundSyncMonitor 
+                userId={currentUser} 
+                accountId={currentAccount} 
+                onSyncComplete={() => {
+                  // Refresh emails and categories after sync
+                  queryClient.invalidateQueries({ queryKey: ['emails'] });
+                  queryClient.invalidateQueries({ queryKey: ['categories'] });
+                }}
+              />
+            </div>
+          )}
+          {/* Silent background monitor for subsequent syncs */}
+          {!showSyncUIOnLoad && (
             <BackgroundSyncMonitor 
               userId={currentUser} 
               accountId={currentAccount} 
@@ -1419,7 +1438,7 @@ const Index = () => {
                 queryClient.invalidateQueries({ queryKey: ['categories'] });
               }}
             />
-          </div>
+          )}
          {/* Desktop Sidebar */}
          {!isMobile && <SidebarContent />}
 

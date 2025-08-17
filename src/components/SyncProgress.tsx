@@ -121,19 +121,7 @@ export default function SyncProgress({ userId, accountId, onSyncComplete }: Sync
         if (allComplete) {
           const failedSyncs = data.filter(status => status.status === 'failed');
           
-          if (failedSyncs.length === 0) {
-            toast({
-              title: "Directory sync complete",
-              description: "Your Gmail data has been successfully imported.",
-            });
-            onSyncComplete?.();
-          } else {
-            toast({
-              title: "Sync completed with issues", 
-              description: `${failedSyncs.length} sync operations failed. Some data may not be available.`,
-              variant: "destructive",
-            });
-          }
+          onSyncComplete?.();
 
           // Hide progress after 3 seconds
           setTimeout(() => setIsVisible(false), 3000);
