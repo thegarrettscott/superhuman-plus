@@ -516,6 +516,10 @@ const Index = () => {
     const onFocus = () => void tick();
     window.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onFocus);
+
+    // Trigger immediately on mount as well
+    void tick();
+
     return () => {
       console.log('Cleaning up auto-refresh interval');
       cancelled = true;
@@ -523,7 +527,7 @@ const Index = () => {
       window.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
     };
-  }, [queryClient]);
+  }, [queryClient, initialImportCompleted, autoImported]);
   const filtered = useMemo(() => {
     // Get user's email for sent filtering
     const getUserEmail = async () => {
