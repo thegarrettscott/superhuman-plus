@@ -193,6 +193,69 @@ async function getMessage(access_token: string, id: string) {
   };
 }
 
+// Gmail History API helpers for cursor-based sync
+async function getProfileHistoryId(access_token: string) {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/profile`, {
+    headers: { Authorization: `Bearer ${access_token}` },
+  });
+  if (!res.ok) throw new Error(`Get profile failed: ${await res.text()}`);
+  const json = await res.json();
+  return json.historyId as string | undefined;
+}
+
+async function listHistoryMessageIds(
+  access_token: string,
+  startHistoryId: string,
+  labelId?: string
+) {
+  const base = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/history`);
+  base.searchParams.set("startHistoryId", String(startHistoryId));
+  base.searchParams.set("historyTypes", "messageAdded");
+  if (labelId) base.searchParams.set("labelId", labelId);
+
+  let nextPageToken: string | undefined;
+  const ids = new Set<string>();
+  let latestHistoryId: string | undefined;
+
+  do {
+    const url = new URL(base);
+    if (nextPageToken) url.searchParams.set("pageToken", nextPageToken);
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      const invalid = res.status === 404 || text.toLowerCase().includes("starthistoryid");
+      throw new Error(`HISTORY_ERROR:${invalid ? "INVALID_START" : "OTHER"}:${text}`);
+    }
+
+    const json = await res.json();
+    const history: any[] = json.history || [];
+
+    for (const h of history) {
+      if (h.id) {
+        if (!latestHistoryId || BigInt(h.id) > BigInt(latestHistoryId)) latestHistoryId = String(h.id);
+      }
+      const msgs = h.messagesAdded || [];
+      for (const ma of msgs) {
+        const mid = ma?.message?.id;
+        if (mid) ids.add(String(mid));
+      }
+    }
+
+    // Some responses include a top-level historyId representing the most recent history record id
+    if (json.historyId && (!latestHistoryId || BigInt(json.historyId) > BigInt(latestHistoryId))) {
+      latestHistoryId = String(json.historyId);
+    }
+
+    nextPageToken = json.nextPageToken;
+  } while (nextPageToken);
+
+  return { ids: Array.from(ids), latestHistoryId };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -217,7 +280,7 @@ serve(async (req) => {
       // Find gmail account
       const { data: account, error: accErr } = await admin
         .from("email_accounts")
-        .select("id, refresh_token")
+        .select("id, refresh_token, history_id, initial_import_completed")
         .eq("user_id", user.id)
         .eq("provider", "gmail")
         .maybeSingle();
@@ -225,13 +288,15 @@ serve(async (req) => {
       if (!account) return new Response(JSON.stringify({ error: "No Gmail account connected" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (!account.refresh_token) return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+      const isIncremental = !!account.history_id && mailbox !== 'drafts';
+
       // Create sync job + initial sync status row
       const { data: job, error: jobErr } = await admin
         .from('sync_jobs')
         .insert({
           user_id: user.id,
           account_id: account.id,
-          job_type: 'initial_import',
+          job_type: isIncremental ? 'incremental_sync' : 'initial_import',
           status: 'running',
           started_at: new Date().toISOString(),
           metadata: { mailbox, max }
@@ -268,14 +333,34 @@ serve(async (req) => {
             .update({ access_token, access_token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString() })
             .eq("id", account.id);
 
-          // List message/draft ids
+          // List message/draft ids with cursor-based strategy for Gmail (History API)
           let ids: string[] = [];
+          let newHistoryId: string | undefined;
+
           if (mailbox === 'drafts') {
             const drafts = await listDrafts(access_token, max);
             ids = drafts.map(d => d.messageId);
           } else {
             const labelId = mailbox === 'sent' ? 'SENT' : 'INBOX';
-            ids = await listRecentMessageIds(access_token, max, labelId);
+
+            if (account.history_id) {
+              try {
+                const hist = await listHistoryMessageIds(access_token, String(account.history_id), labelId);
+                ids = hist.ids;
+                newHistoryId = hist.latestHistoryId || (await getProfileHistoryId(access_token));
+              } catch (e) {
+                const msg = String(e);
+                const invalidStart = msg.includes('HISTORY_ERROR:INVALID_START');
+                console.warn('History API error, falling back to baseline list:', msg);
+                // If the cursor is too old/invalid, fall back to baseline list of recent messages
+                ids = await listRecentMessageIds(access_token, max, labelId);
+                newHistoryId = await getProfileHistoryId(access_token);
+              }
+            } else {
+              // No cursor yet: perform baseline import then set the latest historyId as baseline
+              ids = await listRecentMessageIds(access_token, max, labelId);
+              newHistoryId = await getProfileHistoryId(access_token);
+            }
           }
 
           // Update total
@@ -307,8 +392,8 @@ serve(async (req) => {
                 is_read: !(m.labelIds || []).includes('UNREAD'),
                 body_text: m.body_text || null,
                 body_html: m.body_html || null,
-              };
-              // Upsert by unique gmail_message_id per user
+              } as const;
+              // Upsert by unique gmail_message_id per user (simple delete+insert)
               await admin.from('email_messages').delete()
                 .eq('user_id', user.id)
                 .eq('gmail_message_id', row.gmail_message_id);
@@ -327,6 +412,14 @@ serve(async (req) => {
             } catch (e) {
               console.error('Background fetch/insert error for id', id, e);
             }
+          }
+
+          // Persist the new cursor if available
+          if (newHistoryId) {
+            await admin
+              .from('email_accounts')
+              .update({ history_id: newHistoryId })
+              .eq('id', account.id);
           }
 
           // Mark complete
