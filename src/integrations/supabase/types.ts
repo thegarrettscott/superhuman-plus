@@ -22,6 +22,8 @@ export type Database = {
           email_address: string
           history_id: number | null
           id: string
+          initial_import_completed: boolean
+          initial_import_completed_at: string | null
           provider: string
           refresh_token: string
           scope: string | null
@@ -38,6 +40,8 @@ export type Database = {
           email_address: string
           history_id?: number | null
           id?: string
+          initial_import_completed?: boolean
+          initial_import_completed_at?: string | null
           provider?: string
           refresh_token: string
           scope?: string | null
@@ -54,6 +58,8 @@ export type Database = {
           email_address?: string
           history_id?: number | null
           id?: string
+          initial_import_completed?: boolean
+          initial_import_completed_at?: string | null
           provider?: string
           refresh_token?: string
           scope?: string | null

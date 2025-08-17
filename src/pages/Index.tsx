@@ -78,6 +78,7 @@ const Index = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [autoImported, setAutoImported] = useState(false);
+  const [initialImportCompleted, setInitialImportCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImportingSent, setIsImportingSent] = useState(false);
   const [replyDraft, setReplyDraft] = useState<{
@@ -419,15 +420,16 @@ const Index = () => {
         navigate('/auth');
       } else {
         setCurrentUser(session.user.id);
-        // Fetch user's email account ID
+        // Fetch user's email account ID and import status
         supabase.from('email_accounts')
-          .select('id')
+          .select('id, initial_import_completed')
           .eq('user_id', session.user.id)
           .limit(1)
           .single()
           .then(({ data }) => {
             if (data) {
               setCurrentAccount(data.id);
+              setInitialImportCompleted(data.initial_import_completed);
             }
           });
       }
@@ -441,15 +443,16 @@ const Index = () => {
         navigate('/auth');
       } else {
         setCurrentUser(session.user.id);
-        // Fetch user's email account ID
+        // Fetch user's email account ID and import status
         supabase.from('email_accounts')
-          .select('id')
+          .select('id, initial_import_completed')
           .eq('user_id', session.user.id)
           .limit(1)
           .single()
           .then(({ data }) => {
             if (data) {
               setCurrentAccount(data.id);
+              setInitialImportCompleted(data.initial_import_completed);
             }
           });
       }
@@ -468,13 +471,27 @@ const Index = () => {
       if (cancelled) return;
       console.log('Auto-refreshing emails...');
       try {
-        // Pull in recent messages from Gmail (lightweight import)
-        await supabase.functions.invoke('gmail-actions', {
-          body: {
-            action: 'import',
-            max: 50
+        // Only auto-import if initial import hasn't been completed
+        if (!initialImportCompleted && !autoImported) {
+          console.log('Starting initial import...');
+          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
+            body: { action: 'import', mailbox: 'inbox', max: 200 }
+          });
+          if (importError) {
+            console.error('Failed to import emails:', importError);
+          } else {
+            console.log('Import job queued successfully');
+            setAutoImported(true);
           }
-        });
+        } else {
+          // Pull in recent messages from Gmail (lightweight import)
+          await supabase.functions.invoke('gmail-actions', {
+            body: {
+              action: 'import',
+              max: 50
+            }
+          });
+        }
         // Use refetchOnWindowFocus: false and only invalidate in background
         queryClient.invalidateQueries({
           queryKey: ['emails'],
@@ -1324,36 +1341,38 @@ const Index = () => {
                   Process Recent Emails
                 </Button>
               )}
-              <Button variant="secondary" onClick={async () => {
-              const {
-                data: {
-                  session
+              {!initialImportCompleted && (
+                <Button variant="secondary" onClick={async () => {
+                const {
+                  data: {
+                    session
+                  }
+                } = await supabase.auth.getSession();
+                if (!session) {
+                  toast({
+                    title: "Login required",
+                    description: "Please log in to connect Gmail."
+                  });
+                  return;
                 }
-              } = await supabase.auth.getSession();
-              if (!session) {
-                toast({
-                  title: "Login required",
-                  description: "Please log in to connect Gmail."
+                const {
+                  data,
+                  error
+                } = await supabase.functions.invoke("gmail-oauth", {
+                  body: {
+                    redirect_url: window.location.origin
+                  }
                 });
-                return;
-              }
-              const {
-                data,
-                error
-              } = await supabase.functions.invoke("gmail-oauth", {
-                body: {
-                  redirect_url: window.location.origin
+                if (error || !data?.authUrl) {
+                  toast({
+                    title: "Error",
+                    description: error?.message || "Could not start Google OAuth."
+                  });
+                  return;
                 }
-              });
-              if (error || !data?.authUrl) {
-                toast({
-                  title: "Error",
-                  description: error?.message || "Could not start Google OAuth."
-                });
-                return;
-              }
-              window.location.href = data.authUrl;
-            }}>Connect Gmail</Button>
+                window.location.href = data.authUrl;
+              }}>Connect Gmail</Button>
+              )}
               <Button onClick={() => setFooterReplyOpen(true)}>Send Email </Button>
             </div>
           </div>
@@ -1415,7 +1434,7 @@ const Index = () => {
                   </p>
                 </div>
               </div> : filtered.length === 0 ? <div className="p-6 text-sm text-muted-foreground">
-                No messages yet. Click "Connect Gmail" to load your inbox.
+                {initialImportCompleted ? 'No messages found.' : 'No messages yet. Click "Connect Gmail" to load your inbox.'}
               </div> : <div className="divide-y">
                 {filtered.map(m => <div key={m.id}>
                       <button className={`w-full text-left px-3 py-2 md:py-1.5 h-20 md:h-16 focus:outline-none transition-colors overflow-hidden ${selected?.id === m.id ? "bg-accent" : "hover:bg-accent"}`} onClick={() => {

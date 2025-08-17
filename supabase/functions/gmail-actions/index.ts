@@ -341,6 +341,17 @@ serve(async (req) => {
             .from('sync_jobs')
             .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', job.id);
+
+          // Mark initial import as completed for inbox imports (first time user connects)
+          if (mailbox === 'inbox') {
+            await admin
+              .from('email_accounts')
+              .update({ 
+                initial_import_completed: true,
+                initial_import_completed_at: new Date().toISOString()
+              })
+              .eq('id', account.id);
+          }
         } catch (err) {
           console.error('Background import failed:', err);
           await admin
