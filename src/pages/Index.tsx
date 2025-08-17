@@ -830,12 +830,37 @@ const Index = () => {
   };
   const toggleReadFor = async (email: Email) => {
     const willBeUnread = !email.unread ? true : false; // toggle
-    // Modify Gmail labels: add/remove UNREAD
+    
+    // Update local state immediately for responsiveness
+    setEmails(prev => prev.map(e => e.id === email.id ? {
+      ...e,
+      unread: willBeUnread
+    } : e));
+
+    // Update database first
+    const { error: dbError } = await supabase
+      .from('email_messages')
+      .update({ is_read: !willBeUnread })
+      .eq('id', email.id);
+
+    if (dbError) {
+      console.error('Failed to update read status in database:', dbError);
+      // Revert local state on error
+      setEmails(prev => prev.map(e => e.id === email.id ? {
+        ...e,
+        unread: email.unread
+      } : e));
+      toast({
+        title: 'Failed',
+        description: 'Could not update email status'
+      });
+      return;
+    }
+
+    // Then update Gmail labels: add/remove UNREAD
     const add = willBeUnread ? ['UNREAD'] : [];
     const remove = willBeUnread ? [] : ['UNREAD'];
-    const {
-      error
-    } = await supabase.functions.invoke('gmail-actions', {
+    const { error } = await supabase.functions.invoke('gmail-actions', {
       body: {
         action: 'modify',
         id: email.gmailId,
@@ -843,17 +868,14 @@ const Index = () => {
         remove
       }
     });
+    
     if (error) {
-      toast({
-        title: 'Failed',
-        description: error.message
-      });
-      return;
+      console.warn('Failed to update Gmail labels:', error);
+      // Don't revert local/DB state since database update succeeded
     }
-    setEmails(prev => prev.map(e => e.id === email.id ? {
-      ...e,
-      unread: willBeUnread
-    } : e));
+
+    // Refresh categories to update unread counts
+    await refetchCategories();
   };
   // Optimistic star toggle mutation
   const starMutation = useMutation({
@@ -936,36 +958,44 @@ const Index = () => {
   const markAsRead = async (email: Email) => {
     if (!email.unread) return; // Already read, nothing to do
 
-    // Update database
-    const {
-      error
-    } = await supabase.from('email_messages').update({
-      is_read: true
-    }).eq('id', email.id);
-    if (error) {
-      console.error('Failed to mark email as read:', error);
-      return;
-    }
-
-    // Update local state
+    // Update local state immediately for responsiveness
     setEmails(prev => prev.map(e => e.id === email.id ? {
       ...e,
       unread: false
     } : e));
 
+    // Update database
+    const { error } = await supabase
+      .from('email_messages')
+      .update({ is_read: true })
+      .eq('id', email.id);
+      
+    if (error) {
+      console.error('Failed to mark email as read:', error);
+      // Revert local state on error
+      setEmails(prev => prev.map(e => e.id === email.id ? {
+        ...e,
+        unread: true
+      } : e));
+      return;
+    }
+
     // Also update the Gmail side to mark as read
-    const {
-      error: gmailError
-    } = await supabase.functions.invoke('gmail-actions', {
+    const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
       body: {
         action: 'modify',
         id: email.gmailId,
         remove: ['UNREAD']
       }
     });
+    
     if (gmailError) {
       console.warn('Failed to mark email as read in Gmail:', gmailError);
+      // Don't revert local/DB state since database update succeeded
     }
+
+    // Refresh categories to update unread counts
+    await refetchCategories();
   };
   const openReplyFooter = (email: Email) => {
     const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
