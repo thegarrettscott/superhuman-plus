@@ -22,6 +22,7 @@ import { Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import SyncProgress from "@/components/SyncProgress";
+import BackgroundSyncMonitor from "@/components/BackgroundSyncMonitor";
 // Superhuman-style Gmail client (mocked). Connect Supabase later to enable Gmail OAuth + syncing.
 
 type Email = {
@@ -226,7 +227,7 @@ const Index = () => {
       countQuery = countQuery.contains('label_ids', ['STARRED']);
       dataQuery = dataQuery.contains('label_ids', ['STARRED']);
     } else if (targetMailbox === 'sent') {
-      // Check if we have any sent emails first
+      // Check if we have any sent emails first, if not trigger background import
       const {
         count: sentCount
       } = await supabase.from('email_messages').select('*', {
@@ -234,47 +235,36 @@ const Index = () => {
         head: true
       }).contains('label_ids', ['SENT']);
 
-      // If no sent emails cached, import them first
       if (sentCount === 0) {
         setIsImportingSent(true);
         try {
-          console.log('Importing sent emails from Gmail...');
-          const {
-            error: importError
-          } = await supabase.functions.invoke('gmail-actions', {
-            body: {
-              action: 'import',
-              mailbox: 'sent',
-              max: 50
-            }
+          // Trigger background import job
+          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
+            body: { action: 'import', mailbox: 'sent', max: 100 }
           });
           if (importError) {
-            console.error('Failed to import sent emails:', importError);
+            console.error('Failed to start sent email import:', importError);
             toast({
-              title: 'Failed to import sent emails',
+              title: 'Failed to start sent email import',
               description: importError.message
             });
           } else {
-            console.log('Successfully imported sent emails from Gmail');
             toast({
-              title: 'Sent emails imported successfully'
+              title: 'Importing sent emails in background',
+              description: 'This may take a moment...'
             });
           }
         } catch (err) {
-          console.error('Error importing sent emails:', err);
-          toast({
-            title: 'Error importing sent emails'
-          });
+          console.error('Error starting sent email import:', err);
         } finally {
           setIsImportingSent(false);
         }
       }
 
-      // Filter by SENT label
       countQuery = countQuery.contains('label_ids', ['SENT']);
       dataQuery = dataQuery.contains('label_ids', ['SENT']);
     } else if (targetMailbox === 'drafts') {
-      // Check if we have any drafts first
+      // Check if we have any drafts first, if not trigger background import
       const {
         count: draftCount
       } = await supabase.from('email_messages').select('*', {
@@ -282,43 +272,32 @@ const Index = () => {
         head: true
       }).contains('label_ids', ['DRAFT']);
 
-      // If no drafts cached, import them first
       if (draftCount === 0) {
         setIsLoading(true);
         try {
-          console.log('Importing drafts from Gmail...');
-          const {
-            error: importError
-          } = await supabase.functions.invoke('gmail-actions', {
-            body: {
-              action: 'import',
-              mailbox: 'drafts',
-              max: 50
-            }
+          // Trigger background import job
+          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
+            body: { action: 'import', mailbox: 'drafts', max: 100 }
           });
           if (importError) {
-            console.error('Failed to import drafts:', importError);
+            console.error('Failed to start drafts import:', importError);
             toast({
-              title: 'Failed to import drafts',
+              title: 'Failed to start drafts import',
               description: importError.message
             });
           } else {
-            console.log('Successfully imported drafts from Gmail');
             toast({
-              title: 'Drafts imported successfully'
+              title: 'Importing drafts in background',
+              description: 'This may take a moment...'
             });
           }
         } catch (err) {
-          console.error('Error importing drafts:', err);
-          toast({
-            title: 'Error importing drafts'
-          });
+          console.error('Error starting drafts import:', err);
         } finally {
           setIsLoading(false);
         }
       }
 
-      // Filter by DRAFT label
       countQuery = countQuery.contains('label_ids', ['DRAFT']);
       dataQuery = dataQuery.contains('label_ids', ['DRAFT']);
     } else if (targetMailbox === 'archived') {
@@ -330,13 +309,14 @@ const Index = () => {
       dataQuery = dataQuery.contains('label_ids', [targetMailbox]);
     }
 
-    // Search filter
+    // Search filter - using improved search index
     const q = query.trim();
     if (q) {
       const like = `%${q}%`;
-      countQuery = countQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`);
-      dataQuery = dataQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like}`);
+      countQuery = countQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like},body_text.ilike.${like}`);
+      dataQuery = dataQuery.or(`subject.ilike.${like},from_address.ilike.${like},snippet.ilike.${like},body_text.ilike.${like}`);
     }
+
     const {
       count
     } = await countQuery;
@@ -363,9 +343,9 @@ const Index = () => {
       bodyHtml: row.body_html || undefined
     }));
 
-    // Load filter results and tags for each email
+    // Load filter results and tags for each email (async for speed)
     await Promise.all(mapped.map(async (email) => {
-      // Get tags for this email (manual join since FKs may not be set)
+      // Get tags for this email
       const { data: messageTagRows, error: mtErr } = await supabase
         .from('email_message_tags')
         .select('tag_id')
@@ -396,32 +376,6 @@ const Index = () => {
         }));
     }));
 
-    // Proactive bodies
-    mapped.forEach(async email => {
-      if (!email.body) {
-        const {
-          data
-        } = await supabase.functions.invoke('gmail-actions', {
-          body: {
-            action: 'get',
-            id: email.gmailId
-          }
-        });
-        if (data) {
-          setEmails(prev => prev.map(e => e.id === email.id ? {
-            ...e,
-            body: data.body_text || e.body,
-            bodyHtml: data.body_html || e.bodyHtml
-          } : e));
-        }
-      }
-    });
-
-    // Auto-import disabled for now
-    // if (mapped.length === 0 && !autoImported && page === 1) {
-    //   setAutoImported(true);
-    //   // ... auto-import logic commented out
-    // }
     return {
       emails: mapped,
       total
@@ -1424,18 +1378,18 @@ const Index = () => {
            ? 'space-y-4' 
            : 'grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4'
        }`}>
-         {/* Directory Sync Progress */}
-         <div className={isMobile ? '' : 'col-span-full'}>
-           <SyncProgress 
-             userId={currentUser} 
-             accountId={currentAccount} 
-             onSyncComplete={() => {
-               // Refresh emails and categories after sync
-               queryClient.invalidateQueries({ queryKey: ['emails'] });
-               queryClient.invalidateQueries({ queryKey: ['categories'] });
-             }}
-           />
-         </div>
+          {/* Background Sync Monitor */}
+          <div className={isMobile ? '' : 'col-span-full'}>
+            <BackgroundSyncMonitor 
+              userId={currentUser} 
+              accountId={currentAccount} 
+              onSyncComplete={() => {
+                // Refresh emails and categories after sync
+                queryClient.invalidateQueries({ queryKey: ['emails'] });
+                queryClient.invalidateQueries({ queryKey: ['categories'] });
+              }}
+            />
+          </div>
          {/* Desktop Sidebar */}
          {!isMobile && <SidebarContent />}
 
