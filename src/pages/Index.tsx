@@ -386,12 +386,19 @@ const Index = () => {
     if (emailData) {
       setEmails(emailData.emails);
       setTotalEmails(emailData.total);
-      // Only auto-select first email on initial load, not on refresh
-      if (emailData.emails.length > 0 && !selectedId && emails.length === 0) {
+      
+      // Preserve current selection if the email still exists in the new list
+      if (selectedId && emailData.emails.some(email => email.id === selectedId)) {
+        // Current selection is still valid, keep it
+        return;
+      }
+      
+      // Only auto-select first email on initial load when no email is selected
+      if (emailData.emails.length > 0 && !selectedId) {
         setSelectedId(emailData.emails[0].id);
       }
     }
-  }, [emailData, selectedId, emails.length]);
+  }, [emailData, selectedId]);
 
   // Update categories when data changes
   useEffect(() => {
