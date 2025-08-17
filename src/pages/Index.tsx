@@ -955,47 +955,55 @@ const Index = () => {
       willBeStarred
     });
   };
+  const [markingAsRead, setMarkingAsRead] = useState<Set<string>>(new Set());
+  
   const markAsRead = async (email: Email) => {
-    if (!email.unread) return; // Already read, nothing to do
+    if (!email.unread || markingAsRead.has(email.id)) return; // Already read or currently marking as read
 
-    // Update local state immediately for responsiveness
-    setEmails(prev => prev.map(e => e.id === email.id ? {
-      ...e,
-      unread: false
-    } : e));
+    // Mark as currently processing
+    setMarkingAsRead(prev => new Set(prev).add(email.id));
 
-    // Update database
-    const { error } = await supabase
-      .from('email_messages')
-      .update({ is_read: true })
-      .eq('id', email.id);
-      
-    if (error) {
-      console.error('Failed to mark email as read:', error);
-      // Revert local state on error
+    try {
+      // Update database first
+      const { error } = await supabase
+        .from('email_messages')
+        .update({ is_read: true })
+        .eq('id', email.id);
+        
+      if (error) {
+        console.error('Failed to mark email as read:', error);
+        return;
+      }
+
+      // Update local state after successful database update
       setEmails(prev => prev.map(e => e.id === email.id ? {
         ...e,
-        unread: true
+        unread: false
       } : e));
-      return;
-    }
 
-    // Also update the Gmail side to mark as read
-    const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
-      body: {
-        action: 'modify',
-        id: email.gmailId,
-        remove: ['UNREAD']
-      }
-    });
-    
-    if (gmailError) {
-      console.warn('Failed to mark email as read in Gmail:', gmailError);
-      // Don't revert local/DB state since database update succeeded
-    }
+      // Also update the Gmail side to mark as read (don't await this)
+      supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'modify',
+          id: email.gmailId,
+          remove: ['UNREAD']
+        }
+      }).then(({ error: gmailError }) => {
+        if (gmailError) {
+          console.warn('Failed to mark email as read in Gmail:', gmailError);
+        }
+      });
 
-    // Refresh categories to update unread counts
-    await refetchCategories();
+      // Refresh categories to update unread counts (don't await this)
+      refetchCategories();
+    } finally {
+      // Remove from processing set
+      setMarkingAsRead(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(email.id);
+        return newSet;
+      });
+    }
   };
   const openReplyFooter = (email: Email) => {
     const emailMatch = email.from.match(/<(.+?)>/) || email.from.match(/([^\s<>]+@[^\s<>]+)/);
