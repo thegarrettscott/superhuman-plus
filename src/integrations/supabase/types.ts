@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           access_token: string | null
           access_token_expires_at: string | null
+          auto_filtering_enabled: boolean
           created_at: string
           email_address: string
           history_id: number | null
@@ -36,6 +37,7 @@ export type Database = {
         Insert: {
           access_token?: string | null
           access_token_expires_at?: string | null
+          auto_filtering_enabled?: boolean
           created_at?: string
           email_address: string
           history_id?: number | null
@@ -54,6 +56,7 @@ export type Database = {
         Update: {
           access_token?: string | null
           access_token_expires_at?: string | null
+          auto_filtering_enabled?: boolean
           created_at?: string
           email_address?: string
           history_id?: number | null
