@@ -7,6 +7,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper function to trigger email filtering
+async function triggerEmailFiltering(emailId: string, userId: string) {
+  try {
+    // Get the email data for filtering
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: email } = await admin
+      .from('email_messages')
+      .select('*')
+      .eq('id', emailId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!email) return;
+
+    // Call the email-filter function
+    const { error } = await admin.functions.invoke('email-filter', {
+      body: {
+        action: 'process-email',
+        emailData: email
+      }
+    });
+
+    if (error) {
+      console.warn('Email filtering failed for email', emailId, ':', error);
+    }
+  } catch (error) {
+    console.warn('Error triggering email filtering:', error);
+  }
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -397,8 +427,14 @@ serve(async (req) => {
               await admin.from('email_messages').delete()
                 .eq('user_id', user.id)
                 .eq('gmail_message_id', row.gmail_message_id);
-              await admin.from('email_messages').insert(row);
+              const { data: insertedEmail } = await admin.from('email_messages').insert(row).select('id').single();
               synced++;
+
+              // Trigger automatic filtering for INBOX emails if enabled
+              if (mailbox === 'inbox' && account.auto_filtering_enabled && insertedEmail) {
+                // Queue filtering without blocking the import process
+                EdgeRuntime.waitUntil(triggerEmailFiltering(insertedEmail.id, user.id));
+              }
 
               // Throttle progress updates
               if (synced % 5 === 0 || synced === ids.length) {

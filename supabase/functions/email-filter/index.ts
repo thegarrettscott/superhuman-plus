@@ -28,12 +28,12 @@ async function processEmailWithFilters(emailData: any, userId: string) {
 
   if (filtersError) {
     console.error('Error fetching filters:', filtersError);
-    return;
+    return { success: false, error: filtersError };
   }
 
   if (!filters || filters.length === 0) {
     console.log('No active filters found for user');
-    return;
+    return { success: true, message: 'No filters to process' };
   }
 
   // Get existing tags for the user

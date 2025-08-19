@@ -14,6 +14,7 @@ import { Plus, Edit, Trash2, Play, ArrowLeft, ChevronDown, ChevronRight, Mail } 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { AutoFilteringSettings } from "@/components/AutoFilteringSettings";
 
 const setSeo = (title: string, description: string) => {
   document.title = title;
@@ -106,6 +107,7 @@ const emailTemplates = [
 export default function EmailFilters() {
   const [filters, setFilters] = useState<EmailFilter[]>([]);
   const [tags, setTags] = useState<EmailTag[]>([]);
+  const [account, setAccount] = useState<any>(null);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [editingFilter, setEditingFilter] = useState<EmailFilter | null>(null);
@@ -127,7 +129,21 @@ export default function EmailFilters() {
   useEffect(() => {
     loadFilters();
     loadTags();
+    loadAccount();
   }, []);
+
+  const loadAccount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: accountData } = await supabase
+      .from('email_accounts')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    setAccount(accountData);
+  };
 
   const loadFilters = async () => {
     const { data, error } = await supabase
@@ -293,6 +309,13 @@ export default function EmailFilters() {
       </header>
 
       <main className="container py-6">
+        {/* Auto-filtering settings */}
+        {account && (
+          <div className="mb-6">
+            <AutoFilteringSettings accountId={account.id} />
+          </div>
+        )}
+
         <Tabs defaultValue="filters" className="space-y-6">
           <TabsList>
             <TabsTrigger value="filters">Filters</TabsTrigger>
