@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Search from "./pages/Search";
 import EmailFilters from "./pages/EmailFilters";
+import TokenBroker from "./pages/TokenBroker";
 
 const queryClient = new QueryClient();
 
@@ -24,8 +25,8 @@ const App = () => (
           <Route path="/mail" element={<Index />} />
           <Route path="/search" element={<Search />} />
           <Route path="/filters" element={<EmailFilters />} />
+          <Route path="/token-broker" element={<TokenBroker />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
