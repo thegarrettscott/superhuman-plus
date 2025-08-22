@@ -111,16 +111,27 @@ export default function BackgroundSyncMonitor({
   if (activeSyncs.length === 0) {
     return null;
   }
+
+  // Group syncs by mailbox to avoid duplicate modals
+  const syncsByMailbox = activeSyncs.reduce((acc, sync) => {
+    const mailbox = sync.metadata?.mailbox || 'emails';
+    if (!acc[mailbox]) {
+      acc[mailbox] = [];
+    }
+    acc[mailbox].push(sync);
+    return acc;
+  }, {} as Record<string, SyncJob[]>);
+
   return <div className="space-y-2">
-      {activeSyncs.map(sync => {
-      const mailbox = sync.metadata?.mailbox || 'emails';
-      return <div key={sync.id} className="flex items-center gap-2 text-sm text-muted-foreground p-3 border rounded-lg bg-muted/30">
+      {Object.entries(syncsByMailbox).map(([mailbox, syncs]) => {
+        const hasRunning = syncs.some(s => s.status === 'running');
+        return <div key={mailbox} className="flex items-center gap-2 text-sm text-muted-foreground p-3 border rounded-lg bg-muted/30">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Syncing {mailbox}...</span>
             <span className="text-xs opacity-75">
-              {sync.status === 'running' ? 'In progress' : 'Starting'}
+              {hasRunning ? 'In progress' : 'Starting'}
             </span>
           </div>;
-    })}
+      })}
     </div>;
 }
