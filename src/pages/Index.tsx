@@ -1451,22 +1451,8 @@ const Index = () => {
            ? 'space-y-4' 
            : 'grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4'
        }`}>
-          {/* Background Sync Monitor - Only show UI on initial load */}
-          {showSyncUIOnLoad && (
-            <div className={isMobile ? '' : 'col-span-full'}>
-              <BackgroundSyncMonitor 
-                userId={currentUser} 
-                accountId={currentAccount} 
-                onSyncComplete={() => {
-                  // Refresh emails and categories after sync
-                  queryClient.invalidateQueries({ queryKey: ['emails'] });
-                  queryClient.invalidateQueries({ queryKey: ['categories'] });
-                }}
-              />
-            </div>
-          )}
-          {/* Silent background monitor for subsequent syncs */}
-          {!showSyncUIOnLoad && (
+          {/* Background Sync Monitor */}
+          <div className={isMobile ? '' : 'col-span-full'}>
             <BackgroundSyncMonitor 
               userId={currentUser} 
               accountId={currentAccount} 
@@ -1476,7 +1462,7 @@ const Index = () => {
                 queryClient.invalidateQueries({ queryKey: ['categories'] });
               }}
             />
-          )}
+          </div>
          {/* Desktop Sidebar */}
          {!isMobile && <SidebarContent />}
 
