@@ -238,31 +238,8 @@ const Index = () => {
       }).contains('label_ids', ['SENT']);
 
       if (sentCount === 0) {
-        setIsImportingSent(true);
-        try {
-          // Trigger background import job
-          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
-            body: { action: 'import', mailbox: 'sent', max: 100 }
-          });
-          if (importError) {
-            console.error('Failed to start sent email import:', importError);
-            if (showSyncUIOnLoad) {
-              toast({
-                title: 'Failed to start sent email import',
-                description: importError.message
-              });
-            }
-          } else if (showSyncUIOnLoad) {
-            toast({
-              title: 'Importing sent emails in background',
-              description: 'This may take a moment...'
-            });
-          }
-        } catch (err) {
-          console.error('Error starting sent email import:', err);
-        } finally {
-          setIsImportingSent(false);
-        }
+        // Sent emails will be imported by BackgroundSyncMonitor
+        console.log('No sent emails found - will be imported in background');
       }
 
       countQuery = countQuery.contains('label_ids', ['SENT']);
@@ -277,31 +254,8 @@ const Index = () => {
       }).contains('label_ids', ['DRAFT']);
 
       if (draftCount === 0) {
-        setIsLoading(true);
-        try {
-          // Trigger background import job
-          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
-            body: { action: 'import', mailbox: 'drafts', max: 100 }
-          });
-          if (importError) {
-            console.error('Failed to start drafts import:', importError);
-            if (showSyncUIOnLoad) {
-              toast({
-                title: 'Failed to start drafts import',
-                description: importError.message
-              });
-            }
-          } else if (showSyncUIOnLoad) {
-            toast({
-              title: 'Importing drafts in background',
-              description: 'This may take a moment...'
-            });
-          }
-        } catch (err) {
-          console.error('Error starting drafts import:', err);
-        } finally {
-          setIsLoading(false);
-        }
+        // Drafts will be imported by BackgroundSyncMonitor
+        console.log('No drafts found - will be imported in background');
       }
 
       countQuery = countQuery.contains('label_ids', ['DRAFT']);
@@ -476,27 +430,8 @@ const Index = () => {
       if (cancelled) return;
       console.log('Auto-refreshing emails...');
       try {
-        // Only auto-import if initial import hasn't been completed
-        if (!initialImportCompleted && !autoImported) {
-          console.log('Starting initial import...');
-          const { error: importError } = await supabase.functions.invoke('gmail-actions', {
-            body: { action: 'import', mailbox: 'inbox', max: 200 }
-          });
-          if (importError) {
-            console.error('Failed to import emails:', importError);
-          } else {
-            console.log('Import job queued successfully');
-            setAutoImported(true);
-          }
-        } else {
-          // Pull in recent messages from Gmail (lightweight import)
-          await supabase.functions.invoke('gmail-actions', {
-            body: {
-              action: 'import',
-              max: 50
-            }
-          });
-        }
+        // Only refresh data, don't trigger new imports
+        // BackgroundSyncMonitor handles all import operations
         // Use refetchOnWindowFocus: false and only invalidate in background
         queryClient.invalidateQueries({
           queryKey: ['emails'],

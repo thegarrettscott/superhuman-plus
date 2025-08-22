@@ -72,45 +72,44 @@ export default function BackgroundSyncMonitor({
   const startInitialImport = async () => {
     if (!userId || !accountId || isInitialImportStarted) return;
     setIsInitialImportStarted(true);
+    
     try {
       // Start inbox import
-      const {
-        error: inboxError
-      } = await supabase.functions.invoke('gmail-actions', {
-        body: {
-          action: 'import',
-          mailbox: 'inbox',
-          max: 100
-        }
+      const { error: inboxError } = await supabase.functions.invoke('gmail-actions', {
+        body: { action: 'import', mailbox: 'inbox', max: 100 }
       });
       if (inboxError) {
         throw inboxError;
       }
 
       // Start sent import  
-      const {
-        error: sentError
-      } = await supabase.functions.invoke('gmail-actions', {
-        body: {
-          action: 'import',
-          mailbox: 'sent',
-          max: 100
-        }
+      const { error: sentError } = await supabase.functions.invoke('gmail-actions', {
+        body: { action: 'import', mailbox: 'sent', max: 100 }
       });
       if (sentError) {
         console.warn('Sent import failed:', sentError);
       }
-      // No toast for background sync
+
+      // Start drafts import  
+      const { error: draftsError } = await supabase.functions.invoke('gmail-actions', {
+        body: { action: 'import', mailbox: 'drafts', max: 100 }
+      });
+      if (draftsError) {
+        console.warn('Drafts import failed:', draftsError);
+      }
+      
     } catch (error) {
       console.error('Failed to start import:', error);
-      // Silent failure for background sync
       setIsInitialImportStarted(false);
     }
   };
-  if (activeSyncs.length === 0 && !isInitialImportStarted) {
-    // Show sync starter button for empty inbox
-    return;
-  }
+  // Auto-start initial import when component mounts
+  useEffect(() => {
+    if (userId && accountId && !isInitialImportStarted) {
+      startInitialImport();
+    }
+  }, [userId, accountId]);
+
   if (activeSyncs.length === 0) {
     return null;
   }
