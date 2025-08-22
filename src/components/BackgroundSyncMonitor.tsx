@@ -10,6 +10,7 @@ interface BackgroundSyncMonitorProps {
 }
 interface SyncJob {
   id: string;
+  account_id: string;
   job_type: string;
   status: string;
   started_at: string;
@@ -59,6 +60,9 @@ export default function BackgroundSyncMonitor({
       filter: `user_id=eq.${userId}`
     }, payload => {
       const job = payload.new as SyncJob;
+      // Ignore jobs for other accounts
+      if (job.account_id !== accountId) return;
+
       if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         setActiveSyncs(prev => {
           const filtered = prev.filter(s => s.id !== job.id);
@@ -68,10 +72,14 @@ export default function BackgroundSyncMonitor({
           return filtered;
         });
 
-        // Only show completion notifications on component mount (not background syncs)
         if (payload.eventType === 'UPDATE') {
           if (job.status === 'completed') {
             onSyncComplete?.();
+          } else if (job.status === 'failed') {
+            toast({ title: 'Sync failed', description: job.error_message || 'Please try again.' });
+            // Allow retry if initial import failed
+            setIsInitialImportStarted(false);
+            localStorage.removeItem(getImportKey());
           }
         }
       }

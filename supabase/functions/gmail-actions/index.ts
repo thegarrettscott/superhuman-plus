@@ -412,7 +412,7 @@ serve(async (req) => {
                 gmail_message_id: m.id,
                 thread_id: m.threadId || null,
                 snippet: m.snippet || null,
-                label_ids: m.labelIds || null,
+                label_ids: m.labelIds || [],
                 subject: m.subject,
                 from_address: m.from,
                 to_addresses: m.to,
