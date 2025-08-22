@@ -36,6 +36,10 @@ export default function BackgroundSyncMonitor({
       });
       if (data) {
         setActiveSyncs(data);
+        // If there are already active syncs, don't start new ones
+        if (data.length > 0) {
+          setIsInitialImportStarted(true);
+        }
       }
     };
     loadActiveSyncs();
@@ -74,28 +78,12 @@ export default function BackgroundSyncMonitor({
     setIsInitialImportStarted(true);
     
     try {
-      // Start inbox import
+      // Only start inbox import initially to avoid multiple sync jobs
       const { error: inboxError } = await supabase.functions.invoke('gmail-actions', {
         body: { action: 'import', mailbox: 'inbox', max: 100 }
       });
       if (inboxError) {
         throw inboxError;
-      }
-
-      // Start sent import  
-      const { error: sentError } = await supabase.functions.invoke('gmail-actions', {
-        body: { action: 'import', mailbox: 'sent', max: 100 }
-      });
-      if (sentError) {
-        console.warn('Sent import failed:', sentError);
-      }
-
-      // Start drafts import  
-      const { error: draftsError } = await supabase.functions.invoke('gmail-actions', {
-        body: { action: 'import', mailbox: 'drafts', max: 100 }
-      });
-      if (draftsError) {
-        console.warn('Drafts import failed:', draftsError);
       }
       
     } catch (error) {
