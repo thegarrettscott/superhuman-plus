@@ -23,7 +23,13 @@ export default function BackgroundSyncMonitor({
   onSyncComplete
 }: BackgroundSyncMonitorProps) {
   const [activeSyncs, setActiveSyncs] = useState<SyncJob[]>([]);
-  const [isInitialImportStarted, setIsInitialImportStarted] = useState(false);
+  
+  // Check localStorage to prevent duplicate imports across component remounts
+  const getImportKey = () => `import_started_${userId}_${accountId}`;
+  const [isInitialImportStarted, setIsInitialImportStarted] = useState(() => {
+    if (!userId || !accountId) return false;
+    return localStorage.getItem(getImportKey()) === 'true';
+  });
   useEffect(() => {
     if (!userId || !accountId) return;
 
@@ -39,6 +45,7 @@ export default function BackgroundSyncMonitor({
         // If there are already active syncs, don't start new ones
         if (data.length > 0) {
           setIsInitialImportStarted(true);
+          localStorage.setItem(getImportKey(), 'true');
         }
       }
     };
@@ -75,7 +82,9 @@ export default function BackgroundSyncMonitor({
   }, [userId, accountId, onSyncComplete]);
   const startInitialImport = async () => {
     if (!userId || !accountId || isInitialImportStarted) return;
+    
     setIsInitialImportStarted(true);
+    localStorage.setItem(getImportKey(), 'true');
     
     try {
       // Only start inbox import initially to avoid multiple sync jobs
@@ -89,6 +98,7 @@ export default function BackgroundSyncMonitor({
     } catch (error) {
       console.error('Failed to start import:', error);
       setIsInitialImportStarted(false);
+      localStorage.removeItem(getImportKey());
     }
   };
   // Auto-start initial import when component mounts
@@ -96,7 +106,7 @@ export default function BackgroundSyncMonitor({
     if (userId && accountId && !isInitialImportStarted) {
       startInitialImport();
     }
-  }, [userId, accountId]);
+  }, [userId, accountId, isInitialImportStarted]);
 
   if (activeSyncs.length === 0) {
     return null;
