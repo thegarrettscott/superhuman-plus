@@ -8,7 +8,7 @@ import { EmailContent } from "@/components/EmailContent";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Archive, Mail, Reply, Send, Star, StarOff, X, Filter, Plus } from "lucide-react";
+import { Archive, Mail, Reply, Send, Star, StarOff, X, Filter, Plus, Settings } from "lucide-react";
 import { CreateFilterDialog } from "@/components/CreateFilterDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
