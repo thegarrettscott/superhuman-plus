@@ -1196,34 +1196,6 @@ const Index = () => {
             if (isMobile) setMobileMenuOpen(false);
           }} />
          
-           <div className="mt-4 mb-2 px-3 flex items-center justify-between">
-             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-               Categories
-             </span>
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               className="h-6 px-2 text-xs" 
-               onClick={() => setShowCreateInbox(true)}
-             >
-               +
-             </Button>
-           </div>
-            {(categories || []).map(category => {
-              const displayName = formatCategoryName(category);
-              return (
-                <SidebarItem 
-                  key={category} 
-                  label={displayName} 
-                  active={mailbox === category} 
-                  count={(emails || []).filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} 
-                  onClick={() => {
-                    switchMailbox(category);
-                    if (isMobile) setMobileMenuOpen(false);
-                  }} 
-                />
-              );
-            })}
 
            {(filters || []).length > 0 && (
              <>
