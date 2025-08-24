@@ -1287,40 +1287,11 @@ const Index = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (!session) {
-                      toast({ title: 'Login required', description: 'Please log in to process emails.' });
-                      return;
-                    }
-                    setProcessingFilters(true);
-                    setProcessingProgress(0);
-                    setProcessingSummary(null);
-                    const interval = setInterval(() => {
-                      setProcessingProgress(prev => Math.min(prev + 5, 90));
-                    }, 400);
-                    try {
-                      const { data, error } = await supabase.functions.invoke('process-filters', {
-                        headers: { Authorization: `Bearer ${session.access_token}` }
-                      });
-                      if (error) throw error;
-                      setProcessingProgress(100);
-                      setProcessingSummary(data?.message || `Processed ${data?.processedCount || 0} emails`);
-                      queryClient.invalidateQueries({ queryKey: ['emails'] });
-                      queryClient.invalidateQueries({ queryKey: ['categories'] });
-                      refetchEmails();
-                    } catch (error: any) {
-                      console.error('Error processing filters:', error);
-                      setProcessingSummary(error?.message || 'Failed to process emails with filters');
-                    } finally {
-                      clearInterval(interval);
-                      setTimeout(() => setProcessingFilters(false), 1200);
-                      setTimeout(() => setProcessingSummary(null), 5000);
-                    }
-                  }}
+                  onClick={() => navigate('/settings')}
+                  title="Settings"
                 >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Process Recent Emails
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
                 </Button>
               )}
               {!initialImportCompleted && (
