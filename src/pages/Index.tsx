@@ -111,6 +111,15 @@ const Index = () => {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingSummary, setProcessingSummary] = useState<string | null>(null);
   const PAGE_SIZE = 50;
+
+  // Helper function to clean up category names
+  const formatCategoryName = (category: string): string => {
+    // Remove CATEGORY_ prefix and convert to proper case
+    let formatted = category.replace(/^CATEGORY_/, '');
+    // Convert to proper case (first letter uppercase, rest lowercase)
+    formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase();
+    return formatted;
+  };
   async function loadCategoriesAndUnreads() {
     // Load all unique categories/labels from user's emails
     const {
@@ -1200,38 +1209,53 @@ const Index = () => {
                +
              </Button>
            </div>
-           {(categories || []).map(category => <SidebarItem key={category} label={category} active={mailbox === category} count={(emails || []).filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} onClick={() => {
-             switchMailbox(category);
-             if (isMobile) setMobileMenuOpen(false);
-           }} />)}
+            {(categories || []).map(category => {
+              const displayName = formatCategoryName(category);
+              return (
+                <SidebarItem 
+                  key={category} 
+                  label={displayName} 
+                  active={mailbox === category} 
+                  count={(emails || []).filter(e => e.labels.includes(category.toLowerCase()) && e.unread).length} 
+                  onClick={() => {
+                    switchMailbox(category);
+                    if (isMobile) setMobileMenuOpen(false);
+                  }} 
+                />
+              );
+            })}
 
            {(filters || []).length > 0 && (
              <>
-               <div className="mt-4 mb-2 px-3 flex items-center justify-between">
-                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                   Smart Filters
-                 </span>
-                 <Button 
-                   variant="ghost" 
-                   size="sm" 
-                   className="h-6 px-2 text-xs" 
-                   onClick={() => navigate('/filters')}
-                 >
-                   <Filter className="h-3 w-3" />
-                 </Button>
-               </div>
-                {(filters || []).map(filter => (
-                  <SidebarItem 
-                    key={filter.id} 
-                    label={filter.name} 
-                    active={mailbox === `filter:${filter.id}`} 
-                    count={(filterCategories || {})[filter.name] || 0}
-                   onClick={() => {
-                     switchMailbox(`filter:${filter.id}`);
-                     if (isMobile) setMobileMenuOpen(false);
-                   }} 
-                 />
-               ))}
+                <div className="mt-4 mb-3 px-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Smart Filters
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 px-2 text-xs" 
+                    onClick={() => navigate('/filters')}
+                    title="Manage Filters"
+                  >
+                    <Filter className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  {(filters || []).map(filter => (
+                    <div key={filter.id} className="mx-2">
+                      <SidebarItem 
+                        label={filter.name} 
+                        active={mailbox === `filter:${filter.id}`} 
+                        count={(filterCategories || {})[filter.name] || 0}
+                        onClick={() => {
+                          switchMailbox(`filter:${filter.id}`);
+                          if (isMobile) setMobileMenuOpen(false);
+                        }} 
+                      />
+                    </div>
+                  ))}
+                </div>
              </>
            )}
        </nav>
